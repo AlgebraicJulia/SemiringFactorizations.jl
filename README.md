@@ -20,6 +20,7 @@ relevant functions.
 
 - `sldiv!`
 - `sinv`
+- `slu`
 
 There is some limited support for multithreading as well. This makes
 a huge difference.
