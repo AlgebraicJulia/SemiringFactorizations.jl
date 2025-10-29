@@ -112,7 +112,7 @@ end
 function sinv(A::SparseSemiringLU{T}) where {T}
     B = zeros(T, size(A))
     B[diagind(B)] .= one(T)
-    return sldiv!(A, B)
+    return srdiv!(B, A)
 end
 
 function mtsinv(
@@ -133,9 +133,22 @@ function mtsinv(A::SparseSemiringLU{T}) where {T}
     return mtsldiv!(A, B)
 end
 
-function sldiv!(A::SparseSemiringLU{T, I}, B::AbstractArray) where {T, I <: Integer}
-    neqn = convert(I, size(B, 1))
-    nrhs = convert(I, size(B, 2))
+function sldiv!(A::SparseSemiringLU, B::AbstractVecOrMat)
+    return ssdiv!(A, B, Val(:L))
+end
+
+function srdiv!(B::AbstractMatrix, A::SparseSemiringLU)
+    return ssdiv!(A, B, Val(:R))
+end
+
+function ssdiv!(A::SparseSemiringLU{T, I}, B::AbstractVecOrMat, side::Val{S}) where {T, I <: Integer, S}
+    if B isa AbstractVector || S == :L
+        neqn = convert(I, size(B, 1))
+        nrhs = convert(I, size(B, 2))
+    else
+        neqn = convert(I, size(B, 2))
+        nrhs = convert(I, size(B, 1))
+    end
 
     ord = A.symb.ord
     res = A.symb.res
@@ -156,19 +169,50 @@ function sldiv!(A::SparseSemiringLU{T, I}, B::AbstractArray) where {T, I <: Inte
     Mval = FVector{T}(undef, nNval * nrhs)
     Fval = FVector{T}(undef, nFval * nrhs)
 
-    C  = FMatrix{T}(undef, neqn, nrhs)
-    C .= view(B, ord, :)
+    if B isa AbstractVector
+        C = FVector{T}(undef, neqn)
+    else
+        C = FMatrix{T}(undef, nrhs, neqn)
+    end
 
-    ssldiv_impl!(C, Mptr, Mval, Rptr, Rval, Lptr,
-        Lval, Uval, Fval, res, rel, chd)
+    if B isa AbstractVector
+        C .= view(B, ord)
+    elseif S == :L
+        C .= view(B, ord, :) |> transpose
+    else
+        C .= view(B, :, ord)
+    end
 
-    view(B, ord, :) .= C
+    ssdiv_impl!(C, Mptr, Mval, Rptr, Rval, Lptr,
+        Lval, Uval, Fval, res, rel, chd, Val(:R))
+
+    if B isa AbstractVector
+        view(B, ord) .= C
+    elseif S == :L
+        view(B, ord, :) .= C |> transpose
+    else
+        view(B, :, ord) .= C
+    end
+
     return B
 end
 
-function mtsldiv!(A::SparseSemiringLU{T, I}, B::AbstractArray) where {T, I <: Integer}
-    neqn = convert(I, size(B, 1))
-    nrhs = convert(I, size(B, 2))
+function mtsldiv!(A::SparseSemiringLU, B::AbstractVecOrMat)
+    return mtssdiv!(A, B, Val(:L))
+end
+
+function mtsrdiv!(B::AbstractMatrix, A::SparseSemiringLU)
+    return mtssdiv!(A, B, Val(:R))
+end
+
+function mtssdiv!(A::SparseSemiringLU{T, I}, B::AbstractMatrix, side::Val{S}) where {T, I <: Integer, S}
+    if S == :L
+        neqn = convert(I, size(B, 1))
+        nrhs = convert(I, size(B, 2))
+    else
+        neqn = convert(I, size(B, 2))
+        nrhs = convert(I, size(B, 1))
+    end
 
     ord = A.symb.ord
     res = A.symb.res
@@ -185,25 +229,32 @@ function mtsldiv!(A::SparseSemiringLU{T, I}, B::AbstractArray) where {T, I <: In
     nNval = A.symb.nNval
     nFval = A.symb.nFval
 
-    D = FMatrix{T}(undef, neqn, nrhs)
-
     blocksize = convert(I, max(32, div(nrhs, 4nthreads())))
 
     @threads for strt in one(I):blocksize:nrhs
         size = min(blocksize, nrhs - strt + one(I))
         stop = strt + size - one(I)
 
-        C  = view(D, oneto(neqn), strt:stop)
-        C .= view(B, ord,         strt:stop)
+        C = FMatrix{T}(undef, size, neqn)
+
+        if S == :L
+            C .= view(B, ord, strt:stop) |> transpose
+        else
+            C .= view(B, strt:stop, ord)
+        end
 
         Mptr = FVector{I}(undef, nMptr)
         Mval = FVector{T}(undef, nNval * size)
         Fval = FVector{T}(undef, nFval * size)
 
-        ssldiv_impl!(C, Mptr, Mval, Rptr, Rval, Lptr,
-            Lval, Uval, Fval, res, rel, chd)
+        ssdiv_impl!(C, Mptr, Mval, Rptr, Rval, Lptr,
+            Lval, Uval, Fval, res, rel, chd, Val(:R))
 
-        view(B, ord, strt:stop) .= C
+        if S == :L
+            view(B, ord, strt:stop) .= C |> transpose
+        else
+            view(B, strt:stop, ord) .= C
+        end
     end
 
     return B
@@ -500,8 +551,8 @@ function sslu_loop!(
     return ns
 end
 
-function ssldiv_impl!(
-        C::AbstractArray{T},
+function ssdiv_impl!(
+        C::AbstractVecOrMat{T},
         Mptr::AbstractVector{I},
         Mval::AbstractVector{T},
         Rptr::AbstractVector{I},
@@ -513,43 +564,50 @@ function ssldiv_impl!(
         res::AbstractGraph{I},
         rel::AbstractGraph{I}, 
         chd::AbstractGraph{I},
+        side::Val,
     ) where {T, I <: Integer}
     ns = zero(I); Mptr[one(I)] = one(I)
 
     # forward substitution loop
     for j in vertices(res)
-        ns = ssldiv_fwd_loop!(C, Mptr, Mval, Rptr, Rval, Lptr,
-            Lval, Fval, res, rel, chd, ns, j)
+        ns = ssdiv_fwd_loop!(C, Mptr, Mval, Rptr, Rval, Lptr,
+            Lval, Uval, Fval, res, rel, chd, ns, j, side)
     end
 
     # backward substitution loop
     for j in reverse(vertices(res))
-        ns = ssldiv_bwd_loop!(C, Mptr, Mval, Rptr, Rval, Lptr,
-            Uval, Fval, res, rel, chd, ns, j)
+        ns = ssdiv_bwd_loop!(C, Mptr, Mval, Rptr, Rval, Lptr,
+            Lval, Uval, Fval, res, rel, chd, ns, j, side)
     end
 
     return
 end
 
-function ssldiv_fwd_loop!(
-        C::AbstractMatrix{T},
+function ssdiv_fwd_loop!(
+        C::AbstractVecOrMat{T},
         Mptr::AbstractVector{I},
         Mval::AbstractVector{T},
         Rptr::AbstractVector{I},
         Rval::AbstractVector{T},
         Lptr::AbstractVector{I},
         Lval::AbstractVector{T},
+        Uval::AbstractVector{T},
         Fval::AbstractVector{T},
         res::AbstractGraph{I},
         rel::AbstractGraph{I}, 
         chd::AbstractGraph{I},
         ns::I,
         j::I,
-    ) where {T, I}
+        side::Val{S}
+    ) where {T, I, S}
     #
     #   nrhs is the number of columns in C
     #
-    nrhs = convert(I, size(C, 2))
+    if C isa AbstractVector || S == :L
+        nrhs = convert(I, size(C, 2))
+    else
+        nrhs = convert(I, size(C, 1))
+    end
 
     # nn is the size of the residual at node j
     #
@@ -570,15 +628,29 @@ function ssldiv_fwd_loop!(
     nj = nn + na    
 
     # F is the frontal matrix at node j
-    F = reshape(view(Fval, oneto(nj * nrhs)), nj, nrhs)
+    if C isa AbstractVector
+        F = view(Fval, oneto(nj))
+    elseif S == :L
+        F = reshape(view(Fval, oneto(nj * nrhs)), nj, nrhs)
+    else
+        F = reshape(view(Fval, oneto(nj * nrhs)), nrhs, nj)
+    end
 
     #
     #        nrhs
     #   F = [ F₁ ] nn
     #     = [ F₂ ] na
     #
-    F₁ = view(F, oneto(nn),      oneto(nrhs))
-    F₂ = view(F, nn + one(I):nj, oneto(nrhs))
+    if C isa AbstractVector
+        F₁ = view(F, oneto(nn))
+        F₂ = view(F, nn + one(I):nj)
+    elseif S == :L
+        F₁ = view(F, oneto(nn),      oneto(nrhs))
+        F₂ = view(F, nn + one(I):nj, oneto(nrhs))
+    else
+        F₁ = view(F, oneto(nrhs), oneto(nn))
+        F₂ = view(F, oneto(nrhs), nn + one(I):nj)
+    end
 
     # B is part of the L factor
     #
@@ -588,16 +660,27 @@ function ssldiv_fwd_loop!(
     #
     Rp = Rptr[j]
     Lp = Lptr[j]
-    B₁₁ = reshape(view(Rval, Rp:Rp + nn * nn - one(I)), nn, nn)
-    B₂₁ = reshape(view(Lval, Lp:Lp + nn * na - one(I)), na, nn)
-    L₁₁ = StrictLowerTriangular(B₁₁)
+
+    if C isa AbstractVector || S == :L
+        B₁₁ = reshape(view(Rval, Rp:Rp + nn * nn - one(I)), nn, nn) |> StrictLowerTriangular
+        B₂₁ = reshape(view(Lval, Lp:Lp + nn * na - one(I)), na, nn)
+    else
+        B₁₁ = reshape(view(Rval, Rp:Rp + nn * nn - one(I)), nn, nn) |> UpperTriangular
+        B₂₁ = reshape(view(Uval, Lp:Lp + nn * na - one(I)), nn, na)
+    end
 
     # C₁ is part of the right-hand side
     #
     #        nrhs
     #   C = [ C₁ ] res(j)
     #
-    C₁ = view(C, neighbors(res, j), oneto(nrhs))
+    if C isa AbstractVector
+        C₁ = view(C, neighbors(res, j))
+    elseif S == :L
+        C₁ = view(C, neighbors(res, j), oneto(nrhs))
+    else
+        C₁ = view(C, oneto(nrhs), neighbors(res, j))
+    end
 
     # copy C into F
     #
@@ -608,7 +691,7 @@ function ssldiv_fwd_loop!(
     F₂ .= zero(T)
 
     for i in Iterators.reverse(neighbors(chd, j))
-        ssldiv_fwd_update!(F, Mptr, Mval, rel, ns, i)
+        ssdiv_fwd_update!(F, Mptr, Mval, rel, ns, i, side)
         ns -= one(I)
     end
 
@@ -621,7 +704,11 @@ function ssldiv_fwd_loop!(
     #
     #   C₁ ← B₁₁* C₁
     #
-    sldiv!(L₁₁, C₁)
+    if C isa AbstractVector || S == :L
+        sldiv!(B₁₁, C₁)
+    else
+        srdiv!(C₁, B₁₁)
+    end
 
     if ispositive(na)
         ns += one(I)
@@ -629,7 +716,14 @@ function ssldiv_fwd_loop!(
         # C₂ is the update matrix at node j
         strt = Mptr[ns]
         stop = Mptr[ns + one(I)] = strt + na * nrhs
-        C₂ = reshape(view(Mval, strt:stop - one(I)), na, nrhs)
+
+        if C isa AbstractVector
+            C₂ = view(Mval, strt:stop - one(I))
+        elseif S == :L
+            C₂ = reshape(view(Mval, strt:stop - one(I)), na, nrhs)
+        else
+            C₂ = reshape(view(Mval, strt:stop - one(I)), nrhs, na)
+        end
 
         #
         #   C₂ ← F₂
@@ -639,19 +733,32 @@ function ssldiv_fwd_loop!(
         #
         #   C₂ ← C₂ + B₂₁ C₁
         #
-        mul!(C₂, B₂₁, C₁, one(T), one(T))
+        if C isa AbstractVector
+            @inbounds for w in oneto(nn)
+                Cw = C₁[w]
+
+                for v in oneto(na)
+                    C₂[v] += B₂₁[v, w] * Cw
+                end
+            end
+        elseif S == :L
+            mul!(C₂, B₂₁, C₁, one(T), one(T))
+        else
+            mul!(C₂, C₁, B₂₁, one(T), one(T))
+        end
     end
 
     return ns
 end
 
-function ssldiv_bwd_loop!(
-        C::AbstractMatrix{T},
+function ssdiv_bwd_loop!(
+        C::AbstractVecOrMat{T},
         Mptr::AbstractVector{I},
         Mval::AbstractVector{T},
         Rptr::AbstractVector{I},
         Rval::AbstractVector{T},
         Lptr::AbstractVector{I},
+        Lval::AbstractVector{T},
         Uval::AbstractVector{T},
         Fval::AbstractVector{T},
         res::AbstractGraph{I},
@@ -659,11 +766,16 @@ function ssldiv_bwd_loop!(
         chd::AbstractGraph{I},
         ns::I,
         j::I,
-    ) where {T, I}
+        side::Val{S},
+    ) where {T, I <: Integer, S}
     #
     #   nrhs is the number of columns in C
     #
-    nrhs = convert(I, size(C, 2))
+    if C isa AbstractVector || S == :L
+        nrhs = convert(I, size(C, 2))
+    else
+        nrhs = convert(I, size(C, 1))
+    end
 
     # nn is the size of the residual at node j
     #
@@ -684,15 +796,29 @@ function ssldiv_bwd_loop!(
     nj = nn + na    
 
     # F is the frontal matrix at node j
-    F = reshape(view(Fval, oneto(nj * nrhs)), nj, nrhs)
+    if C isa AbstractVector
+        F = view(Fval, oneto(nj))
+    elseif S == :L
+        F = reshape(view(Fval, oneto(nj * nrhs)), nj, nrhs)
+    else
+        F = reshape(view(Fval, oneto(nj * nrhs)), nrhs, nj)
+    end
 
     #
     #        nrhs
     #   F = [ F₁ ] nn
     #     = [ F₂ ] na
     #
-    F₁ = view(F, oneto(nn),      oneto(nrhs))
-    F₂ = view(F, nn + one(I):nj, oneto(nrhs))
+    if C isa AbstractVector
+        F₁ = view(F, oneto(nn))
+        F₂ = view(F, nn + one(I):nj)
+    elseif S == :L
+        F₁ = view(F, oneto(nn),      oneto(nrhs))
+        F₂ = view(F, nn + one(I):nj, oneto(nrhs))
+    else
+        F₁ = view(F, oneto(nrhs), oneto(nn))
+        F₂ = view(F, oneto(nrhs), nn + one(I):nj)
+    end
 
     # B is part of the U factor
     #
@@ -701,28 +827,59 @@ function ssldiv_bwd_loop!(
     #
     Rp = Rptr[j]
     Lp = Lptr[j]
-    B₁₁ = reshape(view(Rval, Rp:Rp + nn * nn - one(I)), nn, nn)
-    B₁₂ = reshape(view(Uval, Lp:Lp + nn * na - one(I)), nn, na)
-    U₁₁ = UpperTriangular(B₁₁)
+
+    if C isa AbstractVector || S == :L
+        B₁₁ = reshape(view(Rval, Rp:Rp + nn * nn - one(I)), nn, nn) |> UpperTriangular
+        B₁₂ = reshape(view(Uval, Lp:Lp + nn * na - one(I)), nn, na)
+    else
+        B₁₁ = reshape(view(Rval, Rp:Rp + nn * nn - one(I)), nn, nn) |> StrictLowerTriangular
+        B₁₂ = reshape(view(Lval, Lp:Lp + nn * na - one(I)), na, nn)
+    end
 
     # C₁ is part of the right-hand side
     #
     #        nrhs
     #   C = [ C₁ ] res(j)
     #
-    C₁ = view(C, neighbors(res, j), oneto(nrhs))
+    if C isa AbstractVector
+        C₁ = view(C, neighbors(res, j))
+    elseif S == :L
+        C₁ = view(C, neighbors(res, j), oneto(nrhs))
+    else
+        C₁ = view(C, oneto(nrhs), neighbors(res, j))
+    end
 
     if ispositive(na)
         # C₂ is the update matrix at node j
         strt = Mptr[ns]
-        C₂ = reshape(view(Mval, strt:strt + na * nrhs - one(I)), na, nrhs)
+
+        if C isa AbstractVector
+            C₂ = view(Mval, strt:strt + na - one(I))
+        elseif S == :L
+            C₂ = reshape(view(Mval, strt:strt + na * nrhs - one(I)), na, nrhs)
+        else
+            C₂ = reshape(view(Mval, strt:strt + na * nrhs - one(I)), nrhs, na)
+        end
 
         ns -= one(I)
 
         #
         #   C₁ ← C₁ + B₁₂ C₂
         #
-        mul!(C₁, B₁₂, C₂, one(T), one(T))
+
+        if C isa AbstractVector
+            @inbounds for w in oneto(na)
+                Cw = C₂[w]
+
+                for v in oneto(nn)
+                    C₁[v] += B₁₂[v, w] * Cw
+                end
+            end
+        elseif S == :L
+            mul!(C₁, B₁₂, C₂, one(T), one(T))
+        else
+            mul!(C₁, C₂, B₁₂, one(T), one(T))
+        end
 
         #
         #   F₂ ← M₂
@@ -733,7 +890,11 @@ function ssldiv_bwd_loop!(
     #
     #   C₁ ← B₁₁* C₁
     #
-    sldiv!(U₁₁, C₁)
+    if C isa AbstractVector || S == :L
+        sldiv!(B₁₁, C₁)
+    else
+        srdiv!(C₁, B₁₁)
+    end
 
     # copy C into F
     #
@@ -743,7 +904,7 @@ function ssldiv_bwd_loop!(
 
     for i in neighbors(chd, j)
         ns += one(I)
-        ssldiv_bwd_update!(F, Mptr, Mval, rel, ns, i)
+        ssdiv_bwd_update!(F, Mptr, Mval, rel, ns, i, side)
     end
 
     return ns
@@ -776,22 +937,34 @@ function sslu_add_update!(
     #
     #   F ← F + inj B injᵀ
     #
-    view(F, inj, inj) .+= B
+    @inbounds for w in oneto(na)
+        iw = inj[w]
+
+        for v in oneto(na)
+            F[inj[v], iw] += B[v, w]
+        end
+    end
+
     return
 end
 
-function ssldiv_fwd_update!(
-        F::AbstractMatrix{T},
+function ssdiv_fwd_update!(
+        F::AbstractVecOrMat{T},
         ptr::AbstractVector{I},
         val::AbstractVector{T},
         rel::AbstractGraph{I},
         ns::I,
         i::I,
-    ) where {T, I}
+        side::Val{S},
+    ) where {T, I, S}
     #
     #   nrhs is the number of columns in F
     #
-    nrhs = convert(I, size(F, 2))
+    if F isa AbstractVector || S == :L
+        nrhs = convert(I, size(F, 2))
+    else
+        nrhs = convert(I, size(F, 1))
+    end
 
     # na is the size of the separator at node i
     #
@@ -807,27 +980,52 @@ function ssldiv_fwd_update!(
 
     # C is the na × nrhs update matrix at node i
     strt = ptr[ns]
-    C = reshape(view(val, strt:strt + na * nrhs - one(I)), na, nrhs)
+
+    if F isa AbstractVector
+        C = view(val, strt:strt + na - one(I))
+    elseif S == :L
+        C = reshape(view(val, strt:strt + na * nrhs - one(I)), na, nrhs)
+    else
+        C = reshape(view(val, strt:strt + na * nrhs - one(I)), nrhs, na)
+    end
 
     #
     #   F ← F + inj C
     #
-    view(F, inj, oneto(nrhs)) .+= C
+    if F isa AbstractVector || S == :L
+        @inbounds for w in oneto(nrhs), v in oneto(na)
+            F[inj[v], w] += C[v, w]
+        end
+    else
+        @inbounds for v in oneto(na)
+            iv = inj[v]
+
+            for w in oneto(nrhs)
+                F[w, iv] += C[w, v]
+            end
+        end
+    end
+
     return
 end
 
-function ssldiv_bwd_update!(
-        F::AbstractMatrix{T},
+function ssdiv_bwd_update!(
+        F::AbstractVecOrMat{T},
         ptr::AbstractVector{I},
         val::AbstractVector{T},
         rel::AbstractGraph{I},
         ns::I,
         i::I,
-    ) where {T, I}
+        side::Val{S},
+    ) where {T, I, S}
     #
     #   nrhs is the number of columns in F
     #
-    nrhs = convert(I, size(F, 2))
+    if F isa AbstractVector || S == :L
+        nrhs = convert(I, size(F, 2))
+    else
+        nrhs = convert(I, size(F, 1))
+    end
 
     # na is the size of the separator at node i
     #
@@ -844,11 +1042,31 @@ function ssldiv_bwd_update!(
     # C is the na × nrhs update matrix at node i
     strt = ptr[ns]
     stop = ptr[ns + one(I)] = strt + na * nrhs
-    C = reshape(view(val, strt:stop - one(I)), na, nrhs)
+
+    if F isa AbstractVector
+        C = view(val, strt:stop - one(I))
+    elseif S == :L
+        C = reshape(view(val, strt:stop - one(I)), na, nrhs)
+    else
+        C = reshape(view(val, strt:stop - one(I)), nrhs, na)
+    end
 
     #
     #   C ← injᵀ F
     #
-    C .= view(F, inj, oneto(nrhs))
+    if F isa AbstractVector || S == :L
+        @inbounds for w in oneto(nrhs), v in oneto(na)
+            C[v, w] = F[inj[v], w]
+        end
+    else
+        @inbounds for v in oneto(na)
+            iv = inj[v]
+
+            for w in oneto(nrhs)
+                C[w, v] = F[w, iv]
+            end
+        end
+    end
+
     return
 end

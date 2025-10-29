@@ -1,7 +1,7 @@
 module SemiringFactorizations
 
 using AbstractTrees
-using Base: oneto, @propagate_inbounds, OneTo
+using Base: oneto, @propagate_inbounds, OneTo, AbstractVecOrMat
 using Base.Threads: nthreads, @threads
 using CliqueTrees
 using CliqueTrees.Utilities
@@ -18,7 +18,7 @@ const DEFAULT_BLOCK_SIZE = 32
 export StrictLowerTriangular
 export SemiringLU, sinv, slu, slu!, sldiv!, srdiv!
 export SymbolicSemiringLU
-export SparseSemiringLU, mtsinv, mtsldiv!
+export SparseSemiringLU, mtsinv, mtsldiv!, mtsrdiv!
 
 include("strict_lower_triangular.jl")
 include("sinv.jl")

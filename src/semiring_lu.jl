@@ -15,7 +15,7 @@ end
 function Base.getproperty(F::SemiringLU, d::Symbol)
     if d == :L
         p = StrictLowerTriangular(F.factors)
-    elseif d === :U
+    elseif d == :U
         p = UpperTriangular(F.factors)
     else
         p = getfield(F, d)
@@ -56,7 +56,7 @@ function slu(A::AbstractMatrix)
 end
 
 """
-    sldiv!(C::AbstractArray, A, B::AbstractArray)
+    sldiv!(C::AbstractVecOrMat, A, B::AbstractVecOrMat)
 
 Solve the fixed-point equation
 
@@ -64,12 +64,12 @@ Solve the fixed-point equation
 
 The result is stored in C.
 """
-function sldiv!(C::AbstractArray, A, B::AbstractArray)
+function sldiv!(C::AbstractVecOrMat, A, B::AbstractVecOrMat)
     return sldiv!(A, copyto!(C, B))
 end
 
 """
-    sldiv!(A, B::AbstractArray)
+    sldiv!(A, B::AbstractVecOrMat)
 
 Solve the fixed-point equation
 
@@ -77,33 +77,33 @@ Solve the fixed-point equation
 
 The result is stored in B.
 """
-sldiv!(A, B::AbstractArray)
+sldiv!(A, B::AbstractVecOrMat)
 
-function sldiv!(A::Number, B::AbstractArray)
+function sldiv!(A::Number, B::AbstractVecOrMat)
     @. B = sinv(A) * B
     return B
 end
 
-function sldiv!(A::StrictLowerTriangular, B::AbstractArray)
+function sldiv!(A::StrictLowerTriangular, B::AbstractVecOrMat)
     strsm!(parent(A), B, Val(:L), Val(:L))
     return B
 end
 
-function sldiv!(A::UpperTriangular, B::AbstractArray)
+function sldiv!(A::UpperTriangular, B::AbstractVecOrMat)
     strsm!(parent(A), B, Val(:U), Val(:L))
     return B
 end
 
-function sldiv!(A::SemiringLU, B::AbstractArray)
+function sldiv!(A::SemiringLU, B::AbstractVecOrMat)
     return sldiv!(A.U, sldiv!(A.L, B))
 end
 
-function sldiv!(A::AbstractMatrix, B::AbstractArray)
+function sldiv!(A::AbstractMatrix, B::AbstractVecOrMat)
     return sldiv!(slu(A), B)
 end
 
 """
-    srdiv!(C::AbstractArray, B::AbstractArray, A)
+    srdiv!(C::AbstractMatrix, B::AbstractMatrix, A)
 
 Solve the fixed-point equation
 
@@ -111,12 +111,12 @@ Solve the fixed-point equation
 
 The result is stored in C.
 """
-function srdiv!(C::AbstractArray, B::AbstractArray, A)
+function srdiv!(C::AbstractMatrix, B::AbstractMatrix, A)
     return srdiv!(copyto!(C, B), A)
 end
 
 """
-    srdiv!(B::AbstractArray, A)
+    srdiv!(B::AbstractMatrix, A)
 
 Solve the fixed-point equation
 
@@ -124,28 +124,28 @@ Solve the fixed-point equation
 
 The result is stored in B.
 """
-srdiv!(B::AbstractArray, A)
+srdiv!(B::AbstractMatrix, A)
 
-function srdiv!(B::AbstractArray, A::Number)
+function srdiv!(B::AbstractVecOrMat, A::Number)
     B .*= sinv(A)
     return B
 end
 
-function srdiv!(B::AbstractArray, A::StrictLowerTriangular)
+function srdiv!(B::AbstractMatrix, A::StrictLowerTriangular)
     strsm!(parent(A), B, Val(:L), Val(:R))
     return B
 end
 
-function srdiv!(B::AbstractArray, A::UpperTriangular)
+function srdiv!(B::AbstractMatrix, A::UpperTriangular)
     strsm!(parent(A), B, Val(:U), Val(:R))
     return B
 end
 
-function srdiv!(B::AbstractArray, A::SemiringLU)
+function srdiv!(B::AbstractMatrix, A::SemiringLU)
     return srdiv!(srdiv!(B, A.U), A.L)
 end
 
-function srdiv!(B::AbstractArray, A::AbstractMatrix)
+function srdiv!(B::AbstractMatrix, A::AbstractMatrix)
     return srdiv!(B, slu(A))
 end
 
@@ -177,16 +177,18 @@ end
 
 function sgetrf2!(A::AbstractMatrix{T}) where {T}
     @assert size(A, 1) == size(A, 2)
+
+    n = size(A, 1)
     
     @inbounds for i in axes(A, 1)
         #
         #   A = [ Aii Ain ]
         #       [ Ani Ann ]
         #
-        Aii =       A[i,         i]
-        Ain = @view A[i,         i + 1:end]
-        Ani = @view A[i + 1:end, i]
-        Ann = @view A[i + 1:end, i + 1:end]
+        Aii =       A[i,       i]
+        Ain = @view A[i,       i + 1:n]
+        Ani = @view A[i + 1:n, i]
+        Ann = @view A[i + 1:n, i + 1:n]
 
         #
         #   Ani ← Ani Aii*
@@ -244,22 +246,24 @@ function sgetrf!(A::AbstractMatrix{T}, blocksize::Int = DEFAULT_BLOCK_SIZE) wher
     return
 end
 
-function strsm2!(A::AbstractMatrix{T}, B::AbstractArray{T}, uplo::Val{:L}, side::Val{:L}) where {T}
+function strsm2!(A::AbstractMatrix{T}, B::AbstractVecOrMat{T}, uplo::Val{:L}, side::Val{:L}) where {T}
     @assert size(A, 1) == size(A, 2) == size(B, 1)
+
+    n = size(A, 1)
 
     @inbounds for j in axes(B, 2), i in axes(A, 1)
         #
         #   A = [ 0   0   ]
         #       [ Ani Ann ]
         #
-        Ani = @view A[i + 1:end, i]
+        Ani = @view A[i + 1:n, i]
 
         #
         #   B = [ Bi ]
         #       [ Bn ]
         #
-        Bi =       B[i,         j]
-        Bn = @view B[i + 1:end, j]
+        Bi =       B[i,       j]
+        Bn = @view B[i + 1:n, j]
 
         if Bi != zero(T)
             #
@@ -272,7 +276,7 @@ function strsm2!(A::AbstractMatrix{T}, B::AbstractArray{T}, uplo::Val{:L}, side:
     return
 end
 
-function strsm!(A::AbstractMatrix{T}, B::AbstractArray{T}, uplo::Val{:L}, side::Val{:L}, blocksize = DEFAULT_BLOCK_SIZE) where {T}
+function strsm!(A::AbstractMatrix{T}, B::AbstractVecOrMat{T}, uplo::Val{:L}, side::Val{:L}, blocksize = DEFAULT_BLOCK_SIZE) where {T}
     @assert size(A, 1) == size(A, 2) == size(B, 1)
 
     n = size(A, 1)
@@ -285,15 +289,15 @@ function strsm!(A::AbstractMatrix{T}, B::AbstractArray{T}, uplo::Val{:L}, side::
         #   A = [ Abb 0   ]
         #       [ Anb Ann ]
         #
-        Abb = @view A[strt:stop,    strt:stop]
-        Anb = @view A[stop + 1:end, strt:stop]
+        Abb = @view A[strt:stop,  strt:stop]
+        Anb = @view A[stop + 1:n, strt:stop]
 
         #
         #   B = [ Bb ]
         #       [ Bn ]
         #
-        Bb = @view B[strt:stop,    :]
-        Bn = @view B[stop + 1:end, :]
+        Bb = selectdim(B, 1, strt:stop)
+        Bn = selectdim(B, 1, stop + 1:n)
 
         #
         #   Bb ← Abb* Bb
@@ -309,7 +313,7 @@ function strsm!(A::AbstractMatrix{T}, B::AbstractArray{T}, uplo::Val{:L}, side::
     return
 end
 
-function strsm2!(A::AbstractMatrix{T}, B::AbstractArray{T}, uplo::Val{:U}, side::Val{:L}) where {T}
+function strsm2!(A::AbstractMatrix{T}, B::AbstractVecOrMat{T}, uplo::Val{:U}, side::Val{:L}) where {T}
     @assert size(A, 1) == size(A, 2) == size(B, 1)
 
     @inbounds for j in axes(B, 2), i in reverse(axes(A, 1))
@@ -317,15 +321,15 @@ function strsm2!(A::AbstractMatrix{T}, B::AbstractArray{T}, uplo::Val{:U}, side:
         #   A = [ Ann Ani ]
         #       [ 0   Aii ]
         #
-        Ani = @view A[begin:i - 1, i]
-        Aii =       A[i,           i]
+        Ani = @view A[1:i - 1, i]
+        Aii =       A[i,       i]
 
         #
         #   B = [ Bn ]
         #       [ Bi ]
         #
-        Bn = @view B[begin:i - 1, j]
-        Bi =       B[i,           j]
+        Bn = @view B[1:i - 1, j]
+        Bi =       B[i,       j]
 
         #
         #   Bi ← Aii* Bi
@@ -343,7 +347,7 @@ function strsm2!(A::AbstractMatrix{T}, B::AbstractArray{T}, uplo::Val{:U}, side:
     return
 end
 
-function strsm!(A::AbstractMatrix{T}, B::AbstractArray{T}, uplo::Val{:U}, side::Val{:L}, blocksize::Int = DEFAULT_BLOCK_SIZE) where {T}
+function strsm!(A::AbstractMatrix{T}, B::AbstractVecOrMat{T}, uplo::Val{:U}, side::Val{:L}, blocksize::Int = DEFAULT_BLOCK_SIZE) where {T}
     @assert size(A, 1) == size(A, 2) == size(B, 1)
 
     n = size(A, 1)
@@ -356,15 +360,15 @@ function strsm!(A::AbstractMatrix{T}, B::AbstractArray{T}, uplo::Val{:U}, side::
         #   A = [ Ann Anb ]
         #       [ 0   Abb ]
         #
-        Abb = @view A[strt:stop, strt:stop]
-        Anb = @view A[begin:strt - 1, strt:stop]
+        Abb = @view A[strt:stop,  strt:stop]
+        Anb = @view A[1:strt - 1, strt:stop]
 
         #
         #   B = [ Bn ]
         #       [ Bb ]
         #
-        Bb = @view B[strt:stop, :]
-        Bn = @view B[begin:strt - 1, :]
+        Bb = selectdim(B, 1, strt:stop)
+        Bn = selectdim(B, 1, 1:strt - 1)
 
         #
         #   Bb ← Abb* Bbb
@@ -380,7 +384,7 @@ function strsm!(A::AbstractMatrix{T}, B::AbstractArray{T}, uplo::Val{:U}, side::
     return
 end
 
-function strsm2!(A::AbstractMatrix{T}, B::AbstractArray{T}, uplo::Val{:L}, side::Val{:R}) where {T}
+function strsm2!(A::AbstractMatrix{T}, B::AbstractMatrix{T}, uplo::Val{:L}, side::Val{:R}) where {T}
     @assert size(A, 1) == size(A, 2) == size(B, 2)
 
     @inbounds for i in reverse(axes(A, 1))
@@ -388,25 +392,23 @@ function strsm2!(A::AbstractMatrix{T}, B::AbstractArray{T}, uplo::Val{:L}, side:
         #   A = [ Ann 0 ]
         #       [ Ain 0 ]
         #
-        Ain = @view A[i, begin:i - 1]
-
-        #
         #   B = [ Bn Bi ]
         #
         Bi = @view B[:, i]
-        Bn = @view B[:, begin:i - 1]
  
         #
         #
         #   Bn ← Bn + Bi Ain
         #
-        mul!(Bn, Bi, Ain |> transpose, one(T), one(T))
+        for j in 1:i - 1
+            mul!(view(B, :, j), Bi, A[i, j], one(T), one(T))
+        end
     end
 
     return
 end
 
-function strsm!(A::AbstractMatrix{T}, B::AbstractArray{T}, uplo::Val{:L}, side::Val{:R}, blocksize::Int = DEFAULT_BLOCK_SIZE) where {T}
+function strsm!(A::AbstractMatrix{T}, B::AbstractMatrix{T}, uplo::Val{:L}, side::Val{:R}, blocksize::Int = DEFAULT_BLOCK_SIZE) where {T}
     @assert size(A, 1) == size(A, 2) == size(B, 2)
 
     n = size(A, 1)
@@ -420,13 +422,13 @@ function strsm!(A::AbstractMatrix{T}, B::AbstractArray{T}, uplo::Val{:L}, side::
         #       [ Abn Abb ]
         #
         Abb = @view A[strt:stop, strt:stop]
-        Abn = @view A[strt:stop, begin:strt - 1]
+        Abn = @view A[strt:stop, 1:strt - 1]
 
         #
         #   B = [ Bn Bb ]
         #
         Bb = @view B[:, strt:stop]
-        Bn = @view B[:, begin:strt - 1]
+        Bn = @view B[:, 1:strt - 1]
 
         #
         #   Bb ← Bb Abb*
@@ -443,39 +445,40 @@ function strsm!(A::AbstractMatrix{T}, B::AbstractArray{T}, uplo::Val{:L}, side::
     return
 end
 
-function strsm2!(A::AbstractMatrix{T}, B::AbstractArray{T}, uplo::Val{:U}, side::Val{:R}) where {T}
+function strsm2!(A::AbstractMatrix{T}, B::AbstractMatrix{T}, uplo::Val{:U}, side::Val{:R}) where {T}
     @assert size(A, 1) == size(A, 2) == size(B, 2)
+
+    n = size(A, 1)
 
     @inbounds for i in axes(A, 1)
         #
         #   A = [ Aii Ain ]
         #       [ 0   Ann ]
         #
-        Aii =       A[i, i]
-        Ain = @view A[i, i + 1:end]
+        Aii = A[i, i]
  
         #
         #   B = [ Bi Bn ]
         #
         Bi = @view B[:, i]
-        Bn = @view B[:, i + 1:end]
 
         #
         #   Bi ← Bi Aii*
         #
         srdiv!(Bi, Aii)
- 
-        #
+
         #
         #   Bn ← Bn + Bi Ain
         #
-        mul!(Bn, Bi, Ain |> transpose, one(T), one(T))
+        for j in i + 1:n
+            mul!(view(B, :, j), Bi, A[i, j], one(T), one(T))
+        end
     end
 
     return
 end
 
-function strsm!(A::AbstractMatrix{T}, B::AbstractArray{T}, uplo::Val{:U}, side::Val{:R}, blocksize::Int = DEFAULT_BLOCK_SIZE) where {T}
+function strsm!(A::AbstractMatrix{T}, B::AbstractMatrix{T}, uplo::Val{:U}, side::Val{:R}, blocksize::Int = DEFAULT_BLOCK_SIZE) where {T}
     @assert size(A, 1) == size(A, 2) == size(B, 2)
 
     n = size(A, 1)
@@ -489,13 +492,13 @@ function strsm!(A::AbstractMatrix{T}, B::AbstractArray{T}, uplo::Val{:U}, side::
         #       [ 0   Ann ]
         #
         Abb = @view A[strt:stop, strt:stop]
-        Abn = @view A[strt:stop, stop + 1:end]
+        Abn = @view A[strt:stop, stop + 1:n]
 
         #
         #   B = [ Bb Bn ]
         #
         Bb = @view B[:, strt:stop]
-        Bn = @view B[:, stop + 1:end]
+        Bn = @view B[:, stop + 1:n]
 
         #
         #   Bb ← Bb Abb*
@@ -515,14 +518,16 @@ end
 function strtri2!(A::AbstractMatrix{T}, uplo::Val{:L}) where {T}
     @assert size(A, 1) == size(A, 2)
 
+    n = size(A, 1)
+
     @inbounds for i in axes(A, 1)
         #
         #   A = [ Aim 0   0   ]
         #       [ Anm Ani Ann ]
         #
-        Ani = @view A[i + 1:end, i]
-        Aim = @view A[i,         begin:i - 1]
-        Anm = @view A[i + 1:end, begin:i - 1]
+        Ani = @view A[i + 1:n, i]
+        Aim = @view A[i,       1:i - 1]
+        Anm = @view A[i + 1:n, 1:i - 1]
 
         #
         #   Anm ← Anm + Ani Aim 
@@ -551,10 +556,10 @@ function strtri!(A::AbstractMatrix{T}, uplo::Val{:L}, blocksize = DEFAULT_BLOCK_
         #   A = [ Abm Abb 0   ]
         #       [ Anm Anb Ann ]
         #
-        Abb = @view A[strt:stop,    strt:stop]
-        Anb = @view A[stop + 1:end, strt:stop]
-        Anm = @view A[stop + 1:end, begin:strt - 1]
-        Abm = @view A[strt:stop,    begin:strt - 1]
+        Abb = @view A[strt:stop,  strt:stop]
+        Anb = @view A[stop + 1:n, strt:stop]
+        Anm = @view A[stop + 1:n, 1:strt - 1]
+        Abm = @view A[strt:stop,  1:strt - 1]
 
         #
         #   Abm ← Abb* Abm
@@ -583,15 +588,17 @@ end
 function strtri2!(A::AbstractMatrix{T}, uplo::Val{:U}) where {T}
     @assert size(A, 1) == size(A, 2)
 
+    n = size(A, 1)
+
     @inbounds for i in reverse(axes(A, 1))
         #
         #   A = [ Ann Ani Anm ]
         #       [ 0   Aii Aim ]
         #
         Aii = A[i, i]
-        Ani = @view A[begin:i - 1, i]
-        Aim = @view A[i,           i + 1:end]
-        Anm = @view A[begin:i - 1, i + 1:end]
+        Ani = @view A[1:i - 1, i]
+        Aim = @view A[i,       i + 1:n]
+        Anm = @view A[1:i - 1, i + 1:n]
 
         #
         #   Aim ← Aii* Aim
@@ -630,10 +637,10 @@ function strtri!(A::AbstractMatrix{T}, uplo::Val{:U}, blocksize = DEFAULT_BLOCK_
         #   A = [ Ann Anb Anm ]
         #       [ 0   Abb Abm ]
         #
-        Abb = @view A[strt:stop,      strt:stop]
-        Anb = @view A[begin:strt - 1, strt:stop]
-        Abm = @view A[strt:stop,      stop + 1:end]
-        Anm = @view A[begin:strt - 1, stop + 1:end]
+        Abb = @view A[strt:stop,  strt:stop]
+        Anb = @view A[1:strt - 1, strt:stop]
+        Abm = @view A[strt:stop,  stop + 1:n]
+        Anm = @view A[1:strt - 1, stop + 1:n]
 
         #
         #   Abm ← Abb* Abm
