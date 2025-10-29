@@ -1,7 +1,7 @@
 # SemiringFactorizations.jl
 
 SemiringFactorizations.jl is a high-performance Julia library for solving
-affine fixed-point equations
+linear fixed-point equations
 
 ```math
 AX + B = X
@@ -13,6 +13,20 @@ The library supports all the tropical number types in
 built-in Julia number types (`Float64`, `Int64`, etc.). The matrix $A$ can be either
 dense or sparse.
 
+# API
+
+We have tried to mirror the LinearAlgebra.jl API, prepending "s" to
+relevant functions.
+
+- `sldiv!`
+- `sinv`
+
+There is some limited support for multithreading as well. This makes
+a huge difference.
+
+- `mtsldiv!`
+- `mtsinv`
+
 # Examples
 
 ## Linear System of Equations
@@ -23,13 +37,13 @@ Any linear system of equations
 AX = B
 ```
 
-can be reforulated as a fixed-point problem
+can be reformulated as a linear fixed-point problem
 
 ```math
 (I - A)X + B = X.
 ```
 
-This problem can be solved using the function `sinv!`.
+This problem can be solved using the function `sldiv!`.
 
 ```julia-repl
 julia> using LinearAlgebra, SemiringFactorizations
@@ -57,7 +71,7 @@ julia> sldiv!(I - A, b)
 
 Let $G$ be a directed weighted graph with
 adjacency matrix $A$. The all-pairs shortest path
-problem can be formulated as a fixed-point point
+problem can be reformulated as a linear fixed-point point
 problem over the min-plus semiring.
 
 ```math
@@ -77,9 +91,10 @@ julia> A = TropicalMinPlusF64[
        ];
 
 julia> sinv(A)
+sinv(A)
 4×4 Matrix{TropicalMinPlusF64}:
- Infₛ  9.0ₛ  8.0ₛ  Infₛ
- Infₛ  Infₛ  6.0ₛ  Infₛ
- Infₛ  Infₛ  Infₛ  7.0ₛ
- 5.0ₛ  Infₛ  Infₛ  Infₛ
+  0.0ₛ   9.0ₛ   8.0ₛ  15.0ₛ
+ 18.0ₛ   0.0ₛ   6.0ₛ  13.0ₛ
+ 12.0ₛ  21.0ₛ   0.0ₛ   7.0ₛ
+  5.0ₛ  14.0ₛ  13.0ₛ   0.0ₛ
 ```
