@@ -1,3 +1,3 @@
-using Aqua, AlgebraicTemplate 
+using Aqua, SemiringFactorizations 
 
-Aqua.test_all(AlgebraicTemplate, ambiguities=false,)
+Aqua.test_all(SemiringFactorizations, ambiguities=false,)

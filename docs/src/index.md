@@ -1,7 +1,7 @@
-# AlgebraicTemplate.jl
+# SemiringFactorizations.jl
 
 ```@meta
-CurrentModule = AlgebraicTemplate
+CurrentModule = SemiringFactorizations
 ```
 
-`AlgebraicTemplate.jl` is a Julia library for...
+`SemiringFactorizations.jl` is a Julia library for...
