@@ -137,12 +137,15 @@ function sldiv!(A::SparseSemiringLU, B::AbstractVecOrMat)
     return ssdiv!(A, B, Val(:L))
 end
 
-function srdiv!(B::AbstractMatrix, A::SparseSemiringLU)
+function srdiv!(B::AbstractVecOrMat, A::SparseSemiringLU)
     return ssdiv!(A, B, Val(:R))
 end
 
 function ssdiv!(A::SparseSemiringLU{T, I}, B::AbstractVecOrMat, side::Val{S}) where {T, I <: Integer, S}
-    if B isa AbstractVector || S == :L
+    if B isa AbstractVector
+        neqn = convert(I, length(B))
+        nrhs = one(I)
+    elseif S == :L
         neqn = convert(I, size(B, 1))
         nrhs = convert(I, size(B, 2))
     else
@@ -171,6 +174,8 @@ function ssdiv!(A::SparseSemiringLU{T, I}, B::AbstractVecOrMat, side::Val{S}) wh
 
     if B isa AbstractVector
         C = FVector{T}(undef, neqn)
+    elseif S == :L
+        C = FMatrix{T}(undef, neqn, nrhs)
     else
         C = FMatrix{T}(undef, nrhs, neqn)
     end
@@ -178,18 +183,18 @@ function ssdiv!(A::SparseSemiringLU{T, I}, B::AbstractVecOrMat, side::Val{S}) wh
     if B isa AbstractVector
         C .= view(B, ord)
     elseif S == :L
-        C .= view(B, ord, :) |> transpose
+        C .= view(B, ord, :)
     else
         C .= view(B, :, ord)
     end
 
     ssdiv_impl!(C, Mptr, Mval, Rptr, Rval, Lptr,
-        Lval, Uval, Fval, res, rel, chd, Val(:R))
+        Lval, Uval, Fval, res, rel, chd, side)
 
     if B isa AbstractVector
         view(B, ord) .= C
     elseif S == :L
-        view(B, ord, :) .= C |> transpose
+        view(B, ord, :) .= C
     else
         view(B, :, ord) .= C
     end
@@ -203,6 +208,10 @@ end
 
 function mtsrdiv!(B::AbstractMatrix, A::SparseSemiringLU)
     return mtssdiv!(A, B, Val(:R))
+end
+
+function mtssdiv!(A::SparseSemiringLU, B::AbstractVector, side::Val)
+    return ssdiv!(A, B, side)
 end
 
 function mtssdiv!(A::SparseSemiringLU{T, I}, B::AbstractMatrix, side::Val{S}) where {T, I <: Integer, S}
@@ -235,10 +244,14 @@ function mtssdiv!(A::SparseSemiringLU{T, I}, B::AbstractMatrix, side::Val{S}) wh
         size = min(blocksize, nrhs - strt + one(I))
         stop = strt + size - one(I)
 
-        C = FMatrix{T}(undef, size, neqn)
+        if S == :L
+            C = FMatrix{T}(undef, neqn, size)
+        else
+            C = FMatrix{T}(undef, size, neqn)
+        end
 
         if S == :L
-            C .= view(B, ord, strt:stop) |> transpose
+            C .= view(B, ord, strt:stop)
         else
             C .= view(B, strt:stop, ord)
         end
@@ -248,10 +261,10 @@ function mtssdiv!(A::SparseSemiringLU{T, I}, B::AbstractMatrix, side::Val{S}) wh
         Fval = FVector{T}(undef, nFval * size)
 
         ssdiv_impl!(C, Mptr, Mval, Rptr, Rval, Lptr,
-            Lval, Uval, Fval, res, rel, chd, Val(:R))
+            Lval, Uval, Fval, res, rel, chd, side)
 
         if S == :L
-            view(B, ord, strt:stop) .= C |> transpose
+            view(B, ord, strt:stop) .= C
         else
             view(B, strt:stop, ord) .= C
         end
@@ -517,7 +530,7 @@ function sslu_loop!(
     #
     #   B₁₁ ← L₁₁ + U₁₁
     #
-    fact = slu!(B₁₁)
+    sgetrf!(B₁₁)
 
     if ispositive(na)
         ns += one(I)
@@ -535,17 +548,17 @@ function sslu_loop!(
         #
         #   B₂₁ ← B₂₁ U₁₁*
         #   
-        srdiv!(B₂₁, fact.U)
+        strsm!(B₁₁, B₂₁, Val(:U), Val(:R))
 
         #
         #   B₁₂ ← L₁₁* B₁₂
         #   
-        sldiv!(fact.L, B₁₂)
+        strsm!(B₁₁, B₁₂, Val(:L), Val(:L))
 
         #
         #   B₂₂ ← B₂₂ + B₂₁ B₁₂
         #
-        mul!(B₂₂, B₂₁, B₁₂, one(T), one(T))
+        sgemm!(B₂₂, B₂₁, B₁₂)
     end
  
     return ns
@@ -603,7 +616,9 @@ function ssdiv_fwd_loop!(
     #
     #   nrhs is the number of columns in C
     #
-    if C isa AbstractVector || S == :L
+    if C isa AbstractVector
+        nrhs = one(I)
+    elseif S == :L
         nrhs = convert(I, size(C, 2))
     else
         nrhs = convert(I, size(C, 1))
@@ -660,12 +675,11 @@ function ssdiv_fwd_loop!(
     #
     Rp = Rptr[j]
     Lp = Lptr[j]
+    B₁₁ = reshape(view(Rval, Rp:Rp + nn * nn - one(I)), nn, nn)
 
-    if C isa AbstractVector || S == :L
-        B₁₁ = reshape(view(Rval, Rp:Rp + nn * nn - one(I)), nn, nn) |> StrictLowerTriangular
+    if S == :L
         B₂₁ = reshape(view(Lval, Lp:Lp + nn * na - one(I)), na, nn)
     else
-        B₁₁ = reshape(view(Rval, Rp:Rp + nn * nn - one(I)), nn, nn) |> UpperTriangular
         B₂₁ = reshape(view(Uval, Lp:Lp + nn * na - one(I)), nn, na)
     end
 
@@ -704,10 +718,10 @@ function ssdiv_fwd_loop!(
     #
     #   C₁ ← B₁₁* C₁
     #
-    if C isa AbstractVector || S == :L
-        sldiv!(B₁₁, C₁)
+    if S == :L
+        strsm!(B₁₁, C₁, Val(:L), side)
     else
-        srdiv!(C₁, B₁₁)
+        strsm!(B₁₁, C₁, Val(:U), side)
     end
 
     if ispositive(na)
@@ -733,18 +747,10 @@ function ssdiv_fwd_loop!(
         #
         #   C₂ ← C₂ + B₂₁ C₁
         #
-        if C isa AbstractVector
-            @inbounds for w in oneto(nn)
-                Cw = C₁[w]
-
-                for v in oneto(na)
-                    C₂[v] += B₂₁[v, w] * Cw
-                end
-            end
-        elseif S == :L
-            mul!(C₂, B₂₁, C₁, one(T), one(T))
+        if S == :L
+            sgemm!(C₂, B₂₁, C₁)
         else
-            mul!(C₂, C₁, B₂₁, one(T), one(T))
+            sgemm!(C₂, C₁, B₂₁)
         end
     end
 
@@ -771,7 +777,9 @@ function ssdiv_bwd_loop!(
     #
     #   nrhs is the number of columns in C
     #
-    if C isa AbstractVector || S == :L
+    if C isa AbstractVector
+        nrhs = one(I)
+    elseif S == :L
         nrhs = convert(I, size(C, 2))
     else
         nrhs = convert(I, size(C, 1))
@@ -827,12 +835,11 @@ function ssdiv_bwd_loop!(
     #
     Rp = Rptr[j]
     Lp = Lptr[j]
+    B₁₁ = reshape(view(Rval, Rp:Rp + nn * nn - one(I)), nn, nn)
 
-    if C isa AbstractVector || S == :L
-        B₁₁ = reshape(view(Rval, Rp:Rp + nn * nn - one(I)), nn, nn) |> UpperTriangular
+    if S == :L
         B₁₂ = reshape(view(Uval, Lp:Lp + nn * na - one(I)), nn, na)
     else
-        B₁₁ = reshape(view(Rval, Rp:Rp + nn * nn - one(I)), nn, nn) |> StrictLowerTriangular
         B₁₂ = reshape(view(Lval, Lp:Lp + nn * na - one(I)), na, nn)
     end
 
@@ -867,18 +874,10 @@ function ssdiv_bwd_loop!(
         #   C₁ ← C₁ + B₁₂ C₂
         #
 
-        if C isa AbstractVector
-            @inbounds for w in oneto(na)
-                Cw = C₂[w]
-
-                for v in oneto(nn)
-                    C₁[v] += B₁₂[v, w] * Cw
-                end
-            end
-        elseif S == :L
-            mul!(C₁, B₁₂, C₂, one(T), one(T))
+        if S == :L
+            sgemm!(C₁, B₁₂, C₂)
         else
-            mul!(C₁, C₂, B₁₂, one(T), one(T))
+            sgemm!(C₁, C₂, B₁₂)
         end
 
         #
@@ -890,10 +889,10 @@ function ssdiv_bwd_loop!(
     #
     #   C₁ ← B₁₁* C₁
     #
-    if C isa AbstractVector || S == :L
-        sldiv!(B₁₁, C₁)
+    if S == :L
+        strsm!(B₁₁, C₁, Val(:U), side)
     else
-        srdiv!(C₁, B₁₁)
+        strsm!(B₁₁, C₁, Val(:L), side)
     end
 
     # copy C into F
@@ -960,7 +959,9 @@ function ssdiv_fwd_update!(
     #
     #   nrhs is the number of columns in F
     #
-    if F isa AbstractVector || S == :L
+    if F isa AbstractVector
+        nrhs = one(I)
+    elseif S == :L
         nrhs = convert(I, size(F, 2))
     else
         nrhs = convert(I, size(F, 1))
@@ -992,7 +993,11 @@ function ssdiv_fwd_update!(
     #
     #   F ← F + inj C
     #
-    if F isa AbstractVector || S == :L
+    if F isa AbstractVector
+        @inbounds for v in oneto(na)
+            F[inj[v]] += C[v]
+        end
+    elseif S == :L
         @inbounds for w in oneto(nrhs), v in oneto(na)
             F[inj[v], w] += C[v, w]
         end
@@ -1021,7 +1026,9 @@ function ssdiv_bwd_update!(
     #
     #   nrhs is the number of columns in F
     #
-    if F isa AbstractVector || S == :L
+    if F isa AbstractVector
+        nrhs = one(I)
+    elseif S == :L
         nrhs = convert(I, size(F, 2))
     else
         nrhs = convert(I, size(F, 1))
@@ -1054,7 +1061,11 @@ function ssdiv_bwd_update!(
     #
     #   C ← injᵀ F
     #
-    if F isa AbstractVector || S == :L
+    if F isa AbstractVector
+        @inbounds for v in oneto(na)
+            C[v] = F[inj[v]]
+        end
+    elseif S == :L
         @inbounds for w in oneto(nrhs), v in oneto(na)
             C[v, w] = F[inj[v], w]
         end

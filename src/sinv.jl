@@ -10,10 +10,6 @@ object a* satisfying
 """
 sinv(a)
 
-function sinv(a::TropicalAndOr)
-    return TropicalAndOr(true)
-end
-
 function sinv(a::T) where {T <: AbstractFloat}
     if isone(a)
         n = posinf(T)
@@ -22,6 +18,21 @@ function sinv(a::T) where {T <: AbstractFloat}
     end
 
     return n
+end
+
+function sinv(a::T) where {T <: Integer}
+    if iszero(a)
+        n = one(T)
+    else
+        n = posinf(T)
+    end
+
+    return n
+end
+
+
+function sinv(a::TropicalAndOr)
+    return TropicalAndOr(true)
 end
 
 function sinv(a::TropicalMaxMul{T}) where {T}

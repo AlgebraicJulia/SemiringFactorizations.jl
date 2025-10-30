@@ -16,8 +16,21 @@ end
 @testset "(ℝ ∪ {+∞}, +, ×, 0, 1)" begin
     for name in ("swang1", "wang1", "wang3", "ex1", "ex10", "ex10hs")
         A = readmatrix(name)
-        b = rand(size(A, 1))
+
+        m = 10
+        n = size(A, 1)
+
+        B = rand(n, m)
+        b = rand(n)
+
+        @test sldiv!(A, copy(B)) ≈ (I - A) \ B
         @test sldiv!(A, copy(b)) ≈ (I - A) \ b
+
+        C = B |> transpose
+        c = b |> transpose
+
+        @test srdiv!(copy(C), A) ≈ C / (I - A)
+        @test srdiv!(copy(b), A) |> transpose ≈ c / (I - A)
     end
 end
 
