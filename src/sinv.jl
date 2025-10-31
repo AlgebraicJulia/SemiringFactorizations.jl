@@ -64,9 +64,11 @@ function sinv(a::TropicalMaxMul{T}) where {T}
     return TropicalMaxMul(n)
 end
 
-function sinv(::TropicalMaxMin{T}) where {T}
-    n = posinf(T)
-    return TropicalMaxMin(n)
+Base.@static if isdefined(TropicalNumbers, :TropicalMaxMin)
+    function sinv(::TropicalMaxMin{T}) where {T}
+        n = posinf(T)
+        return TropicalMaxMin(n)
+    end
 end
 
 function sinv(A::Union{AbstractMatrix{T}, AbstractSemiringLU{T}}) where {T}
