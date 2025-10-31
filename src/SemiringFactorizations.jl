@@ -19,11 +19,15 @@ export StrictLowerTriangular
 export SemiringLU, sinv, slu, slu!, sldiv!, srdiv!
 export SymbolicSemiringLU
 export SparseSemiringLU, mtsinv, mtsldiv!, mtsrdiv!
+export TropicalMinMax, TropicalMinMaxF64, TropicalMinMaxF32,
+    TropicalMinMaxF16, TropicalMinMaxI64, TropicalMinMaxI32,
+    TropicalMinMaxI16
 
-include("strict_lower_triangular.jl")
+include("abstract_semiring_lu.jl")
 include("sinv.jl")
-include("semiring_lu.jl")
-include("symbolic_semiring_lu.jl")
-include("sparse_semiring_lu.jl")
+include("strict_lower_triangular.jl")
+include("dense.jl")
+include("symbolic.jl")
+include("sparse.jl")
 
 end

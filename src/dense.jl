@@ -1,15 +1,11 @@
 """
-    SemiringLU{T, M <: AbstractMatrix{T}}
+    SemiringLU{T, M <: AbstractMatrix{T}} <: AbstractSemiringLU{T}
 
 An LU factorization of a semiring-valued
 matrix.
 """
-struct SemiringLU{T, M <: AbstractMatrix{T}}
+struct SemiringLU{T, M <: AbstractMatrix{T}} <: AbstractSemiringLU{T}
     factors::M
-end
-
-function Base.size(F::SemiringLU)
-    return size(F.factors)
 end
 
 function Base.getproperty(F::SemiringLU, d::Symbol)
@@ -33,51 +29,18 @@ function Base.show(io::IO, mime::MIME"text/plain", F::T) where {T <: SemiringLU}
     return
 end
 
-"""
-    slu!(A::AbstractMatrix)
+# ------------------------------ #
+# Abstract Semiring LU Interface #
+# ------------------------------ #
 
-Compute an LU factorization of a semiring-
-valued matrix A. The factors are stored
-in A.
-"""
+function Base.size(F::SemiringLU)
+    return size(F.factors)
+end
+
 function slu!(A::AbstractMatrix)
     sgetrf!(A)
     return SemiringLU(A)
 end
-
-"""
-    slu(A::AbstractMatrix)
-
-Compute an LU factorization of a semiring-
-valued matrix A.
-"""
-function slu(A::AbstractMatrix)
-    return slu!(Matrix(A))
-end
-
-"""
-    sldiv!(C::AbstractVecOrMat, A, B::AbstractVecOrMat)
-
-Solve the fixed-point equation
-
-    AX + B = X.
-
-The result is stored in C.
-"""
-function sldiv!(C::AbstractVecOrMat, A, B::AbstractVecOrMat)
-    return sldiv!(A, copyto!(C, B))
-end
-
-"""
-    sldiv!(A, B::AbstractVecOrMat)
-
-Solve the fixed-point equation
-
-    AX + B = X.
-
-The result is stored in B.
-"""
-sldiv!(A, B::AbstractVecOrMat)
 
 function sldiv!(A::Number, B::AbstractVecOrMat)
     strsm!(A, B, Val(:U), Val(:L))
@@ -98,34 +61,6 @@ function sldiv!(A::SemiringLU, B::AbstractVecOrMat)
     return sldiv!(A.U, sldiv!(A.L, B))
 end
 
-function sldiv!(A::AbstractMatrix, B::AbstractVecOrMat)
-    return sldiv!(slu(A), B)
-end
-
-"""
-    srdiv!(C::AbstractMatrix, B::AbstractMatrix, A)
-
-Solve the fixed-point equation
-
-    XA + B = X.
-
-The result is stored in C.
-"""
-function srdiv!(C::AbstractMatrix, B::AbstractMatrix, A)
-    return srdiv!(copyto!(C, B), A)
-end
-
-"""
-    srdiv!(B::AbstractMatrix, A)
-
-Solve the fixed-point equation
-
-    XA + B = X.
-
-The result is stored in B.
-"""
-srdiv!(B::AbstractVecOrMat, A)
-
 function srdiv!(B::AbstractVecOrMat, A::Number)
     strsm!(A, B, Val(:U), Val(:R))
     return B
@@ -145,16 +80,6 @@ function srdiv!(B::AbstractVecOrMat, A::SemiringLU)
     return srdiv!(srdiv!(B, A.U), A.L)
 end
 
-function srdiv!(B::AbstractVecOrMat, A::AbstractMatrix)
-    return srdiv!(B, slu(A))
-end
-
-function sinv(A::Union{AbstractMatrix{T}, SemiringLU{T}}) where {T}
-    B = zeros(T, size(A))
-    B[diagind(B)] .= one(T)
-    return srdiv!(B, A)
-end
-
 # ------------------------ #
 # Low-Level Matrix Kernels #
 # ------------------------ #
@@ -171,19 +96,16 @@ function sgetrf2!(A::AbstractMatrix{T}) where {T}
         #
         Aii =       A[i,       i]
         Ani = @view A[i + 1:n, i]
-
         #
         #   Ani ← Ani Aii*
         #
         strsm2!(Aii, Ani, Val(:U), Val(:R)) 
-
         #
         #   Ann ← Ann + Ani Ain
         #
         for j in i + 1:n
             Aij =       A[i,       j]
             Anj = @view A[i + 1:n, j]
-
             #
             #   Anj ← Anj + Ani Aij
             #
@@ -202,7 +124,6 @@ function sgetrf!(A::AbstractMatrix{T}, blocksize::Int = DEFAULT_BLOCK_SIZE) wher
     @inbounds for strt in 1:blocksize:n
         size = min(blocksize, n - strt + 1)
         stop = strt + size - 1
-
         #
         #   A = [ Abb Abn ]
         #       [ Anb Ann ]
@@ -211,22 +132,18 @@ function sgetrf!(A::AbstractMatrix{T}, blocksize::Int = DEFAULT_BLOCK_SIZE) wher
         Abn = @view A[strt:stop,  stop + 1:n]
         Anb = @view A[stop + 1:n, strt:stop]
         Ann = @view A[stop + 1:n, stop + 1:n]
-
         #
         #   Abb ← Lbb + Ubb
         # 
         sgetrf2!(Abb)
-
         # 
         #   Abn ← Lbb* Abn
         #    
         strsm!(Abb, Abn, Val(:L), Val(:L))
-
         #
         #   Anb ← Anb Ubb*
         #
         strsm!(Abb, Anb, Val(:U), Val(:R))
-
         #
         #   Ann ← Ann + Anb Abn
         #
@@ -248,14 +165,12 @@ function strsm2!(A::AbstractMatrix{T}, B::AbstractVecOrMat{T}, uplo::Val{:L}, si
         #       [ Ani Ann ]
         #
         Ani = @view A[i + 1:n, i]
-
         #
         #   B = [ Bi ]
         #       [ Bn ]
         #
         Bi =       B[i,       j]
         Bn = @view B[i + 1:n, j]
-
         #
         #   Bn ← Bn + Ani Bi
         #
@@ -273,14 +188,12 @@ function strsm!(A::AbstractMatrix{T}, B::AbstractVecOrMat{T}, uplo::Val{:L}, sid
     @inbounds for strt in 1:blocksize:n
         size = min(blocksize, n - strt + 1)
         stop = strt + size - 1
-
         #
         #   A = [ Abb 0   ]
         #       [ Anb Ann ]
         #
         Abb = @view A[strt:stop,  strt:stop]
         Anb = @view A[stop + 1:n, strt:stop]
-
         #
         #   B = [ Bb ]
         #       [ Bn ]
@@ -292,12 +205,10 @@ function strsm!(A::AbstractMatrix{T}, B::AbstractVecOrMat{T}, uplo::Val{:L}, sid
             Bb = @view B[strt:stop,  :]
             Bn = @view B[stop + 1:n, :]
         end
-
         #
         #   Bb ← Abb* Bb
         #
         strsm2!(Abb, Bb, uplo, side)
-
         #
         #   Bn ← Bn + Anb Bb
         #
@@ -309,7 +220,6 @@ end
 
 function strsm2!(A::T, B::AbstractVector{T}, uplo::Val{:U}, side::Val{:L}) where {T}
     n = length(B); invA = sinv(A)
-
     #
     #   B ← A* B
     #
@@ -339,19 +249,16 @@ function strsm2!(A::AbstractMatrix{T}, B::AbstractVecOrMat{T}, uplo::Val{:U}, si
         #
         Ani = @view A[1:i - 1, i]
         Aii =       A[i,       i]
-
         #
         #   B = [ Bn ]
         #       [ Bi ]
         #
         Bn = @view B[1:i - 1, j]
         Bi =       B[i,       j]
-
         #
         #   Bi ← Aii* Bi
         #
         Bi = B[i, j] = sinv(Aii) * Bi
-
         #
         #   Bn ← Bn + Ani Bi
         #
@@ -369,14 +276,12 @@ function strsm!(A::AbstractMatrix{T}, B::AbstractVecOrMat{T}, uplo::Val{:U}, sid
     @inbounds for stop in n:-blocksize:1
         size = min(blocksize, stop)
         strt = stop - size + 1
-
         #
         #   A = [ Ann Anb ]
         #       [ 0   Abb ]
         #
         Abb = @view A[strt:stop,  strt:stop]
         Anb = @view A[1:strt - 1, strt:stop]
-
         #
         #   B = [ Bn ]
         #       [ Bb ]
@@ -388,12 +293,10 @@ function strsm!(A::AbstractMatrix{T}, B::AbstractVecOrMat{T}, uplo::Val{:U}, sid
             Bb = @view B[strt:stop,  :]
             Bn = @view B[1:strt - 1, :]
         end
-
         #
         #   Bb ← Abb* Bbb
         #
         strsm2!(Abb, Bb, uplo, side)
-
         #
         #   Bn ← Bn + Anb Bb
         #
@@ -416,7 +319,6 @@ function strsm2!(A::AbstractMatrix{T}, B::AbstractVector{T}, uplo::Val{:L}, side
         #   B = [ Bj  Bn  ]
         #
         BnAnj = zero(T)
-
         #
         #   BnAnj ← Bn Anj
         #
@@ -441,13 +343,11 @@ function strsm2!(A::AbstractMatrix{T}, B::AbstractMatrix{T}, uplo::Val{:L}, side
         #       [ Anj Ann ]
         #
         Anj = @view A[j + 1:n, j]
-
         #
         #   B = [ Bj  Bn  ]
         #
         Bj = @view B[:, j]
         Bn = @view B[:, j + 1:n]
-
         #
         #   Bj ← Bj + Bn Anj
         #
@@ -469,14 +369,12 @@ function strsm!(A::AbstractMatrix{T}, B::AbstractVecOrMat{T}, uplo::Val{:L}, sid
     @inbounds for stop in n:-blocksize:1
         size = min(blocksize, stop)
         strt = stop - size + 1
-
         #
         #   A = [ Abb 0   ]
         #       [ Anb Ann ]
         #
         Abb = @view A[strt:stop,  strt:stop]
         Anb = @view A[stop + 1:n, strt:stop]
-
         #
         #   B = [ Bb Bn ]
         #
@@ -487,12 +385,10 @@ function strsm!(A::AbstractMatrix{T}, B::AbstractVecOrMat{T}, uplo::Val{:L}, sid
             Bb = @view B[:, strt:stop]
             Bn = @view B[:, stop + 1:n]
         end
-
         #
         #   Bb ← Bb + Bb Anb
         #
         sgemm!(Bb, Bn, Anb)
-
         #
         #   Bb ← Bb Abb*
         #
@@ -504,7 +400,6 @@ end
 
 function strsm2!(A::T, B::AbstractVector{T}, uplo::Val{:U}, side::Val{:R}) where {T}
     n = length(B); invA = sinv(A)
-
     #
     #   B ← B A*
     #
@@ -533,27 +428,31 @@ function strsm2!(A::AbstractMatrix{T}, B::AbstractVector{T}, uplo::Val{:U}, side
         #
         #   B = [ Bn  Bj ]
         #
-        BnAnj = zero(T)
+        invAjj = sinv(A[j, j])
 
-        #
-        #   BnAnj ← Bn Anj
-        #
-        @simd for i in 1:j - 1
-            BnAnj += B[i] * A[i, j]
+        if iszero(invAjj)
+            Bj = zero(T)
+        else
+            BnAnj = zero(T)
+            #
+            #   BnAnj ← Bn Anj
+            #
+            @simd for i in 1:j - 1
+                BnAnj += B[i] * A[i, j]
+            end
+
+            Bj = B[j]
+            #
+            #   Bj ← Bj + AnAnj
+            #
+            Bj += BnAnj
+            #
+            #   Bj ← Bj Ajj*
+            #
+            Bj *= invAjj
         end
 
-        Ajj = A[j, j]
-        Bj  = B[   j]
-
-        #
-        #   Bj ← Bj + AnAnj
-        #
-        Bj += BnAnj
-
-        #
-        #   Bj ← Bj Ajj*
-        #
-        B[j] = Bj * sinv(Ajj)
+        B[j] = Bj
     end
 
     return
@@ -571,18 +470,15 @@ function strsm2!(A::AbstractMatrix{T}, B::AbstractMatrix{T}, uplo::Val{:U}, side
         #
         Ajj =       A[j,       j]
         Anj = @view A[1:j - 1, j]
-
         #
         #   B = [ Bn Bj ]
         #
         Bj = @view B[:, j]
         Bn = @view B[:, 1:j - 1]
-
         #
         #   Bj ← Bj + Bn Anj
         #
         sgemm!(Bj, Bn, Anj)
-
         #
         #   Bj ← Bj Ajj*
         #
@@ -604,14 +500,12 @@ function strsm!(A::AbstractMatrix{T}, B::AbstractVecOrMat{T}, uplo::Val{:U}, sid
     @inbounds for strt in 1:blocksize:n
         size = min(blocksize, n - strt + 1)
         stop = strt + size - 1
-
         #
         #   A = [ Ann Anb ]
         #       [ 0   Abb ]
         #
         Abb = @view A[strt:stop,  strt:stop]
         Anb = @view A[1:strt - 1, strt:stop]
-
         #
         #   B = [ Bn Bb ]
         #
@@ -622,12 +516,10 @@ function strsm!(A::AbstractMatrix{T}, B::AbstractVecOrMat{T}, uplo::Val{:U}, sid
             Bb = @view B[:, strt:stop]
             Bn = @view B[:, 1:strt - 1]
         end
-
         #
         #   Bb ← Bb + Bn Anb
         #
         sgemm!(Bb, Bn, Anb)
-
         #
         #   Bb ← Bb Abb*
         #
@@ -638,6 +530,22 @@ function strsm!(A::AbstractMatrix{T}, B::AbstractVecOrMat{T}, uplo::Val{:U}, sid
 end
 
 function sgemm!(C::AbstractMatrix{T}, A::AbstractMatrix{T}, B::AbstractMatrix{T}) where {T}
+    @assert size(C, 1) == size(A, 1)
+    @assert size(C, 2) == size(B, 2)
+    @assert size(A, 2) == size(B, 1)
+
+    @inbounds for j in axes(C, 2), k in axes(A, 2)
+        Bkj = B[k, j]
+
+        for i in axes(C, 1)
+            C[i, j] += A[i, k] * Bkj
+        end
+    end
+
+    return
+end
+
+function sgemm!(C::AbstractMatrix{T}, A::AbstractMatrix{T}, B::AbstractMatrix{T}) where {T <: Number}
     mul!(C, A, B, one(T), one(T))
     return
 end
@@ -649,7 +557,6 @@ function sgemm!(C::AbstractVector{T}, A::AbstractMatrix{T}, B::AbstractVector{T}
     @inbounds for j in axes(A, 2)
         Aj = @view A[:, j]
         Bj =       B[   j]
-
         #
         #   C ← C + Aj Bj
         #

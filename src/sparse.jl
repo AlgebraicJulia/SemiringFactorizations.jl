@@ -1,21 +1,16 @@
 """
-    SparseSemiringLU{T, I}
+    SparseSemiringLU{T, I} <: AbstractSemiringLU{T}
 
 An LU factorization of a sparse semiring-
 valued matrix.
 """
-struct SparseSemiringLU{T, I}
+struct SparseSemiringLU{T, I} <: AbstractSemiringLU{T}
     symb::SymbolicSemiringLU{I}
     Rptr::FVector{I}
     Rval::FVector{T}
     Lptr::FVector{I}
     Lval::FVector{T}
     Uval::FVector{T}
-end
-
-function Base.size(F::SparseSemiringLU)
-    n = convert(Int, nov(F.symb.res))
-    return (n, n)
 end
 
 function Base.show(io::IO, ::MIME"text/plain", fact::T) where {T <: SparseSemiringLU}
@@ -25,6 +20,15 @@ function Base.show(io::IO, ::MIME"text/plain", fact::T) where {T <: SparseSemiri
     print(io, "$T:")
     print(io, "\n  maximum front-size: $frt")
     print(io, "\n  Lnz + Unz: $nnz")
+end
+
+# ------------------------------ #
+# Abstract Semiring LU Interface #
+# ------------------------------ #
+
+function Base.size(F::SparseSemiringLU)
+    n = convert(Int, nov(F.symb.res))
+    return (n, n)
 end
 
 function slu(

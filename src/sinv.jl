@@ -12,27 +12,46 @@ sinv(a)
 
 function sinv(a::T) where {T <: AbstractFloat}
     if isone(a)
-        n = posinf(T)
+        b = posinf(T)
     else
-        n = inv(one(T) - a)
+        b = inv(one(T) - a)
     end
 
-    return n
+    return b
 end
 
 function sinv(a::T) where {T <: Integer}
     if iszero(a)
-        n = one(T)
+        b = one(T)
     else
-        n = posinf(T)
+        b = posinf(T)
     end
 
-    return n
+    return b
 end
-
 
 function sinv(a::TropicalAndOr)
     return TropicalAndOr(true)
+end
+
+function sinv(a::TropicalMaxPlus{T}) where {T}
+    if ispositive(a.n)
+        n = posinf(T)
+    else
+        n = zero(T)
+    end
+
+    return TropicalMaxPlus(n)
+end
+    
+function sinv(a::TropicalMinPlus{T}) where {T}
+    if isnegative(a.n)
+        n = neginf(T)
+    else
+        n = zero(T)
+    end
+
+    return TropicalMinPlus(n)
 end
 
 function sinv(a::TropicalMaxMul{T}) where {T}
@@ -45,22 +64,17 @@ function sinv(a::TropicalMaxMul{T}) where {T}
     return TropicalMaxMul(n)
 end
 
-function sinv(a::TropicalMaxPlus{T}) where {T}
-    if a.n > zero(T)
-        n = posinf(T)
-    else
-        n = zero(T)
-    end
-
-    return TropicalMaxPlus(n)
+function sinv(::TropicalMaxMin{T}) where {T}
+    n = posinf(T)
+    return TropicalMaxMin(n)
 end
-    
-function sinv(a::TropicalMinPlus{T}) where {T}
-    if a.n < zero(T)
-        n = neginf(T)
-    else
-        n = zero(T)
+
+function sinv(A::Union{AbstractMatrix{T}, AbstractSemiringLU{T}}) where {T}
+    B = zeros(T, size(A))
+
+    @inbounds for i in diagind(B)
+        B[i] = one(T)
     end
 
-    return TropicalMinPlus(n)
+    return srdiv!(B, A)
 end
