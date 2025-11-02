@@ -77,7 +77,6 @@ julia> A = TropicalMinPlusF64[
        ];
 
 julia> sinv(A)
-sinv(A)
 4×4 Matrix{TropicalMinPlusF64}:
   0.0ₛ   9.0ₛ   8.0ₛ  15.0ₛ
  18.0ₛ   0.0ₛ   6.0ₛ  13.0ₛ
