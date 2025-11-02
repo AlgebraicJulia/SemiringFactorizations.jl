@@ -15,10 +15,9 @@ Base.size(F::AbstractSemiringLU)
     slu!(A::AbstractMatrix)
 
 Compute an LU factorization of a semiring-
-valued matrix A. The factors are stored
-in A.
+valued matrix A, over-writing A with the factors.
 """
-slu(A::AbstractMatrix)
+slu!(A::AbstractMatrix)
 
 """
     slu(A::AbstractMatrix)
@@ -36,12 +35,12 @@ end
 Solve the linear fixed-point equation
 
 ```math
-    AX + B = X.
+    AX + B = X,
 ```
 
-The result is stored in B.
+over-writing B with the solution.
 """
-sldiv!(A::AbstractSemiringLU, B::AbstractVecOrMat)
+sldiv!(A, B::AbstractVecOrMat)
 
 function sldiv!(A::AbstractMatrix, B::AbstractVecOrMat)
     return sldiv!(slu(A), B)
@@ -53,12 +52,12 @@ end
 Solve the linear fixed-point equation
 
 ```math
-    XA + B = X.
+    XA + B = X,
 ```
 
-The result is stored in B.
+over-writing B with the solution.
 """
-srdiv!(B::AbstractVecOrMat, A::AbstractSemiringLU)
+srdiv!(B::AbstractVecOrMat, A)
 
 function srdiv!(B::AbstractVecOrMat, A::AbstractMatrix)
     return srdiv!(B, slu(A))

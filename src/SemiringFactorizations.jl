@@ -9,6 +9,7 @@ using CliqueTrees: incident, nov, PermutationOrAlgorithm, SupernodeType,
     DEFAULT_ELIMINATION_ALGORITHM, DEFAULT_SUPERNODE_TYPE
 using Graphs
 using LinearAlgebra
+using Octavian
 using SparseArrays
 using TropicalGEMM
 using TropicalNumbers
@@ -16,7 +17,7 @@ using TropicalNumbers
 const DEFAULT_BLOCK_SIZE = 32
 
 export StrictLowerTriangular
-export SemiringLU, sinv, slu, slu!, sldiv!, srdiv!
+export SemiringLU, sinv, slu, slu!, sldiv!, srdiv!, sldiv, srdiv
 export SymbolicSemiringLU
 export SparseSemiringLU, mtsinv, mtsldiv!, mtsrdiv!
 export TropicalMinMax, TropicalMinMaxF64, TropicalMinMaxF32,
@@ -24,8 +25,8 @@ export TropicalMinMax, TropicalMinMaxF64, TropicalMinMaxF32,
     TropicalMinMaxI16
 
 include("abstract_semiring_lu.jl")
-include("sinv.jl")
 include("strict_lower_triangular.jl")
+include("scalar.jl")
 include("dense.jl")
 include("symbolic.jl")
 include("sparse.jl")

@@ -29,8 +29,8 @@ end
         C = B |> transpose
         c = b |> transpose
 
-        @test srdiv!(copy(C), A) ≈ C / (I - A)
-        @test srdiv!(copy(b), A) |> transpose ≈ c / (I - A)
+        @test srdiv(C, A) ≈ C / (I - A)
+        @test srdiv(b, A) |> transpose ≈ c / (I - A)
     end
 end
 

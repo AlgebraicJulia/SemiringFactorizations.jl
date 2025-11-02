@@ -1,3 +1,9 @@
+"""
+    SymbolicSemiringLU{I}
+
+A symbolic factorization of a sparse
+semiring-valued matrix.
+"""
 struct SymbolicSemiringLU{I}
     ord::FVector{I}
     res::BipartiteGraph{I, I, FVector{I}, OneTo{I}}
@@ -21,6 +27,9 @@ function Base.show(io::IO, ::MIME"text/plain", symb::T) where {T <: SymbolicSemi
     print(io, "\n  Lnz + Unz: $nnz")
 end
 
+"""
+    SymbolicSemiringLU(A::SparseMatrixCSC; alg = AMF(), snd = Maximal())
+"""
 function SymbolicSemiringLU(matrix::SparseMatrixCSC; alg::PermutationOrAlgorithm = DEFAULT_ELIMINATION_ALGORITHM, snd::SupernodeType = DEFAULT_SUPERNODE_TYPE)
     return SymbolicSemiringLU(matrix, alg, snd)
 end

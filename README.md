@@ -13,21 +13,6 @@ The library supports all the tropical number types in
 built-in Julia number types (`Float64`, `Int64`, etc.). The matrix $A$ can be either
 dense or sparse.
 
-# API
-
-We have tried to mirror the LinearAlgebra.jl API, prepending "s" to
-relevant functions.
-
-- `sldiv!`
-- `sinv`
-- `slu`
-
-There is some limited support for multithreading as well. This makes
-a huge difference.
-
-- `mtsldiv!`
-- `mtsinv`
-
 # Examples
 
 ## Linear System of Equations

@@ -219,18 +219,12 @@ function strsm!(A::AbstractMatrix{T}, B::AbstractVecOrMat{T}, uplo::Val{:L}, sid
 end
 
 function strsm2!(A::T, B::AbstractVector{T}, uplo::Val{:U}, side::Val{:L}) where {T}
-    n = length(B); invA = sinv(A)
+    n = length(B)
     #
     #   B ← A* B
     #
-    if iszero(invA)
-        @inbounds @simd for i in 1:n
-            B[i] = zero(T)
-        end
-    else
-        @inbounds @simd for i in 1:n
-            B[i] = invA * B[i]
-        end
+    @inbounds @simd for i in 1:n
+        B[i] = sldiv(A, B[i])
     end
 
     return
@@ -258,7 +252,7 @@ function strsm2!(A::AbstractMatrix{T}, B::AbstractVecOrMat{T}, uplo::Val{:U}, si
         #
         #   Bi ← Aii* Bi
         #
-        Bi = B[i, j] = sinv(Aii) * Bi
+        Bi = B[i, j] = sldiv(Aii, Bi)
         #
         #   Bn ← Bn + Ani Bi
         #
@@ -399,18 +393,12 @@ function strsm!(A::AbstractMatrix{T}, B::AbstractVecOrMat{T}, uplo::Val{:L}, sid
 end
 
 function strsm2!(A::T, B::AbstractVector{T}, uplo::Val{:U}, side::Val{:R}) where {T}
-    n = length(B); invA = sinv(A)
+    n = length(B)
     #
     #   B ← B A*
     #
-    if iszero(invA)
-        @inbounds @simd for i in 1:n
-            B[i] = zero(T)
-        end 
-    else
-        @inbounds @simd for i in 1:n
-            B[i] = B[i] * invA
-        end
+    @inbounds @simd for i in 1:n
+        B[i] = srdiv(B[i], A)
     end
 
     return
@@ -428,31 +416,25 @@ function strsm2!(A::AbstractMatrix{T}, B::AbstractVector{T}, uplo::Val{:U}, side
         #
         #   B = [ Bn  Bj ]
         #
-        invAjj = sinv(A[j, j])
+        Ajj = A[j, j]
 
-        if iszero(invAjj)
-            Bj = zero(T)
-        else
-            BnAnj = zero(T)
-            #
-            #   BnAnj ← Bn Anj
-            #
-            @simd for i in 1:j - 1
-                BnAnj += B[i] * A[i, j]
-            end
-
-            Bj = B[j]
-            #
-            #   Bj ← Bj + AnAnj
-            #
-            Bj += BnAnj
-            #
-            #   Bj ← Bj Ajj*
-            #
-            Bj *= invAjj
+        BnAnj = zero(T)
+        #
+        #   BnAnj ← Bn Anj
+        #
+        @simd for i in 1:j - 1
+            BnAnj += B[i] * A[i, j]
         end
 
-        B[j] = Bj
+        Bj = B[j]
+        #
+        #   Bj ← Bj + AnAnj
+        #
+        Bj += BnAnj
+        #
+        #   Bj ← Bj Ajj*
+        #
+        B[j] = srdiv(Bj, Ajj)
     end
 
     return
@@ -546,7 +528,7 @@ function sgemm!(C::AbstractMatrix{T}, A::AbstractMatrix{T}, B::AbstractMatrix{T}
 end
 
 function sgemm!(C::AbstractMatrix{T}, A::AbstractMatrix{T}, B::AbstractMatrix{T}) where {T <: Number}
-    mul!(C, A, B, one(T), one(T))
+    matmul!(C, A, B, one(T), one(T))
     return
 end
 

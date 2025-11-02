@@ -31,6 +31,14 @@ function Base.size(F::SparseSemiringLU)
     return (n, n)
 end
 
+"""
+    slu(A::SparseMatricCSC; alg=AMF(), snd=Maximal())
+
+Compute an LU factorization of a sparse
+semiring-valued matrix A, optionally specifying
+an elimination algorithm `alg` and supernode
+type `snd`.
+"""
 function slu(
         A::SparseMatrixCSC;
         alg::PermutationOrAlgorithm = DEFAULT_ELIMINATION_ALGORITHM,
@@ -101,36 +109,22 @@ function slu(matrix::SparseMatrixCSC{T, I}, symb::SymbolicSemiringLU{I}) where {
     return SparseSemiringLU(symb, Rptr, Rval, Lptr, Lval, Uval)    
 end
 
-function sinv(
-        A::SparseMatrixCSC;
-        alg::PermutationOrAlgorithm = DEFAULT_ELIMINATION_ALGORITHM,
-        snd::SupernodeType = DEFAULT_SUPERNODE_TYPE,
-    )
-    return sinv(A, alg, snd)
-end
-
-function sinv(A::SparseMatrixCSC, alg::PermutationOrAlgorithm, snd::SupernodeType)
-    return sinv(slu(A, alg, snd))
-end
-
 function sinv(A::SparseSemiringLU{T}) where {T}
     B = zeros(T, size(A))
     B[diagind(B)] .= one(T)
     return srdiv!(B, A)
 end
 
-function mtsinv(
-        A::SparseMatrixCSC;
-        alg::PermutationOrAlgorithm = DEFAULT_ELIMINATION_ALGORITHM,
-        snd::SupernodeType = DEFAULT_SUPERNODE_TYPE,
-    )
-    return mtsinv(A, alg, snd)
-end
+"""
+    mtsinv(A::SparseSemiringLU)
 
-function mtsinv(A::SparseMatrixCSC, alg::PermutationOrAlgorithm, snd::SupernodeType)
-    return mtsinv(A, slu(A, alg, snd))
-end
+A multi-threaded version of [`sinv`](@ref).
 
+!!! warning
+    This feature is experimental and
+    subject to change.
+
+"""
 function mtsinv(A::SparseSemiringLU{T}) where {T}
     B = zeros(T, size(A))
     B[diagind(B)] .= one(T)
@@ -206,10 +200,30 @@ function ssdiv!(A::SparseSemiringLU{T, I}, B::AbstractVecOrMat, side::Val{S}) wh
     return B
 end
 
-function mtsldiv!(A::SparseSemiringLU, B::AbstractVecOrMat)
+"""
+    mtsldiv!(A::SparseSemiringLU, B::AbstractMatrix)
+
+A multi-threaded version of [`sldiv!`](@ref).
+
+!!! warning
+    This feature is experimental
+    and subject to change.
+
+"""
+function mtsldiv!(A::SparseSemiringLU, B::AbstractMatrix)
     return mtssdiv!(A, B, Val(:L))
 end
 
+"""
+    mtsrdiv!(B::AbstractMatrix, A::SparseSemiringLU)
+
+A multi-threaded version of [`srdiv!`](@ref).
+
+!!! warning
+    This feature is experimental
+    and subject to change.
+
+"""
 function mtsrdiv!(B::AbstractMatrix, A::SparseSemiringLU)
     return mtssdiv!(A, B, Val(:R))
 end
