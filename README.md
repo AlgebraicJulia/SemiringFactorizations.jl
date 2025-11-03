@@ -1,21 +1,41 @@
 # SemiringFactorizations.jl
 
-SemiringFactorizations.jl is a high-performance Julia library for solving
-linear fixed-point equations
+## Semirings
+
+A [semiring](https://en.wikipedia.org/wiki/Semiring) is an algebraic structure that
+generalizes rings, dropping the requirement that each element must have an additive
+inverse. Examples of semirings include
+
+- $(\mathbb{R}, +, \times, 0, 1)$
+- $(\mathbb{Z}, +, \times, 0, 1)$
+- $(\mathbb{R}, \mathrm{max}, +, -\infty, 0)$
+- $(\mathbb{R}, \mathrm{max}, \mathrm{min}, -\infty, +\infty)$
+
+Several semirings are implemented in the Julia library [TropicalNumbers.jl](https://github.com/TensorBFS/TropicalNumbers.jl/).
+
+## Fixed-Point Equations
+
+Let $A \in \mathbb{S}^{n \times n}$ and $B \in \mathbb{S}^{n \times m}$ be matrices over a semiring $\mathbb{S}$.
+The linear fixed-point equation
 
 ```math
 AX + B = X
 ```
 
-where A and B are matrices valued in a [semiring](https://en.wikipedia.org/wiki/Semiring).
-The library supports all the tropical number types in
-[TropicalNumbers.jl](https://github.com/TensorBFS/TropicalNumbers.jl) as well as the
-built-in Julia number types (`Float64`, `Int64`, etc.). The matrix $A$ can be either
-dense or sparse.
+is solved by the matrix $A^*X \in \mathbb{S}^{n \times m}$, where $A^*$ is a matrix called the *quasi-inverse*
+of $A$. With SemiringFactorizations.jl, we can solve linear fixed-point equations with the functions `sinv(A)`,
+`sldiv(A, B)`, and `srdiv(B, A)`, which respectively compute
 
-# Examples
+- $A^*$
+- $A^*B$
+- $BA^*$
 
-## Linear System of Equations
+All three functions work by computing an LU factorization of $A$. A factorization can also be computed
+directly with the function `slu` and then reused. **Both dense and sparse matrices are supported**.
+
+## Examples
+
+### Linear System of Equations
 
 Any linear system of equations
 
@@ -29,7 +49,7 @@ can be reformulated as a linear fixed-point problem
 (I - A)X + B = X.
 ```
 
-This problem can be solved using the function `sldiv!`.
+This problem can be solved using the function `sldiv`.
 
 ```julia-repl
 julia> using LinearAlgebra, SemiringFactorizations
@@ -46,14 +66,14 @@ julia> b = [
            3.0
        ];
 
-julia> sldiv!(I - A, b)
+julia> sldiv(I - A, b)
 3-element Vector{Float64}:
  -1.4999999999999998
   1.75
   2.2499999999999996
 ```
 
-## All-Pairs Shortest Paths
+### All-Pairs Shortest Paths
 
 Let $G$ be a directed weighted graph with
 adjacency matrix $A$. The all-pairs shortest path
