@@ -26,9 +26,9 @@ The linear fixed-point equation
 AX + B = X
 ```
 
-is solved by the matrix $A^*X \in \mathbb{S}^{n \times m}$, where $A^*$ is a matrix called the *quasi-inverse*
-of $A$. With SemiringFactorizations.jl, we can solve linear fixed-point equations with the functions `sinv(A)`,
-`sldiv(A, B)`, and `srdiv(B, A)`, which respectively compute
+is solved by the matrix $X = A^*B \in \mathbb{S}^{n \times m}$, where $A^* \in \mathbb{S}^{n \times n}$ is a
+matrix called the *quasi-inverse* of $A$. With SemiringFactorizations.jl, we can solve linear fixed-point
+equations with the functions `sinv(A)`, `sldiv(A, B)`, and `srdiv(B, A)`, which respectively compute
 
 - ``A^*``
 - ``A^*B``
