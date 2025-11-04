@@ -23,8 +23,10 @@ export SparseSemiringLU, mtsinv, mtsldiv!, mtsrdiv!
 export TropicalMinMax, TropicalMinMaxF64, TropicalMinMaxF32,
     TropicalMinMaxF16, TropicalMinMaxI64, TropicalMinMaxI32,
     TropicalMinMaxI16
+export RE
 
 include("abstract_semiring_lu.jl")
+include("re.jl")
 include("strict_lower_triangular.jl")
 include("scalar.jl")
 include("dense.jl")

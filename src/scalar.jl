@@ -68,54 +68,32 @@ function sldiv(a::T, b::T) where {T <: Integer}
     return c
 end
 
-function sldiv(a::TropicalAndOr, b::TropicalAndOr)
+function sldiv(a::T, b::T) where {T <: Union{TropicalAndOr, TropicalBitwise, TropicalMaxMin}}
     return b
 end
 
-function sldiv(a::TropicalBitwise, b::TropicalBitwise)
-    return b
-end
-
-function sldiv(a::TropicalMaxPlus{T}, b::TropicalMaxPlus{T}) where {T}
-    if !ispositive(a.n) || b.n <= neginf(T)
-        n = b.n
+function sldiv(a::T, b::T) where {T <: Union{TropicalMaxPlus, TropicalMinPlus, TropicalMaxMul}}
+    if a <= one(T) || b <= typemin(T)
+        c = b
     else
-        n = posinf(T)
+        c = typemax(T)
     end
 
-    return TropicalMaxPlus(n)
+    return c
 end
 
-function sldiv(a::TropicalMinPlus{T}, b::TropicalMinPlus{T}) where {T}
-    if !isnegative(a.n) || b.n >= posinf(T)
-        n = b.n
+function sldiv(a::RE, b::RE)
+    if iszero(a) || isone(a)
+        c = b
     else
-        n = neginf(T)
+        c = RE(nmg(a.str) * "*") * b
     end
 
-    return TropicalMinPlus(n)
+    return c
 end
 
-function sldiv(a::TropicalMaxMul{T}, b::TropicalMaxMul{T}) where {T}
-    if a.n <= one(T) || !ispositive(b.n)
-        n = b.n
-    else
-        n = posinf(T)
-    end
-
-    return TropicalMaxMul(n)
-end
-
-function sldiv(a::TropicalMaxMin{T}, b::TropicalMaxMin{T}) where {T}
-    return b
-end
-
-function sldiv(A, B::AbstractMatrix)
-    return sldiv!(A, Matrix(B))
-end
-
-function sldiv(A, B::AbstractVector)
-    return sldiv!(A, Vector(B))
+function sldiv(A, B::AbstractArray{T, N}) where {T, N}
+    return sldiv!(A, Array{T, N}(B))
 end
 
 """
@@ -136,10 +114,16 @@ function srdiv(b::T, a::T) where {T <: CommutativeSemiring}
     return sldiv(a, b)
 end
 
-function srdiv(B::AbstractMatrix, A)
-    return srdiv!(Matrix(B), A)
+function srdiv(b::RE, a::RE)
+    if iszero(a) || isone(a)
+        c = b
+    else
+        c = b * RE(nmg(a.str) * "*")
+    end
+
+    return c
 end
 
-function srdiv(B::AbstractVector, A)
-    return srdiv!(Vector(B), A)
+function srdiv(B::AbstractArray{T, N}, A) where {T, N}
+    return srdiv!(Array{T, N}(B), A)
 end

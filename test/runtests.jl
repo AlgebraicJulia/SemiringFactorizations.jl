@@ -13,6 +13,10 @@ function readmatrix(name::String)
     return mmread(path)
 end
 
+function fullmatch(r::Regex, s::String)
+    return match(r"^" * r * r"$", s)
+end
+
 @testset "(ℝ ∪ {+∞}, +, ×, 0, 1)" begin
     for name in ("swang1", "wang1", "wang3", "ex1", "ex10", "ex10hs")
         A = readmatrix(name)
@@ -104,4 +108,35 @@ end
         0.0 1.0 0.9
         0.0 1.0 1.0     
     ]
+end
+
+@testset "Regular expressions" begin
+    A = RE[
+        "a^" "a"  "a"  "a^" "a^" "a^"
+        "a^" "a^" "a^" "a^" "a^" "c"
+        "a^" "a^" "a^" "c"  "b"  "a^"
+        "a^" "a^" "a^" "a^" "b"  "a^" 
+        "a^" "a^" "a^" "a^" "a^" "a"
+        "a^" "a^" "a^" "a^" "a^" "a^"
+    ]
+
+    B = sinv(A)
+
+    r = B[1, 6] |> Regex
+
+    @test !isnothing(fullmatch(r, "ac"))
+    @test !isnothing(fullmatch(r, "aba"))
+    @test !isnothing(fullmatch(r, "acba"))
+
+    @test isnothing(fullmatch(r, "ca"))
+    @test isnothing(fullmatch(r, "ab"))
+    @test isnothing(fullmatch(r, "acb"))
+
+    r = B[3, 5] |> Regex
+
+    @test !isnothing(fullmatch(r, "b"))
+    @test !isnothing(fullmatch(r, "cb"))
+
+    @test isnothing(fullmatch(r, "c"))
+    @test isnothing(fullmatch(r, "bc"))
 end

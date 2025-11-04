@@ -58,52 +58,135 @@ This problem can be solved using the function `sldiv`.
 ```julia-repl
 julia> using LinearAlgebra, SemiringFactorizations
 
-julia> A = [
-           2.0 1.0 1.0
-           1.0 2.0 0.0
-           1.0 0.0 2.0
+julia> A = Float64[
+           1 1 1 1 1 1
+           1 2 1 1 1 1
+           1 1 2 1 1 1
+           1 1 1 2 1 1
+           1 1 1 1 2 1
+           1 1 1 1 1 2
        ];
 
-julia> b = [
-           1.0
-           2.0
-           3.0
+julia> b = Float64[
+           1
+           2
+           3
+           4
+           5
+           6 
        ];
 
 julia> sldiv(I - A, b)
-3-element Vector{Float64}:
- -1.4999999999999998
-  1.75
-  2.2499999999999996
+6-element Vector{Float64}:
+ -14.0
+   1.0
+   2.0
+   3.0
+   4.0
+   5.0
 ```
 
-### All-Pairs Shortest Paths
+### Path Counting
 
-Let $G$ be a directed weighted graph with
-adjacency matrix $A$. The all-pairs shortest path
-problem can be reformulated as a linear fixed-point point
-problem over the min-plus semiring.
+Directed graphs can be represented by 1-0 matrices
+called adjacency matrices.
 
-```math
-AX + I = X.
+![](assets/counting.svg)
+
+The quasi-inverse of this matrix contains, for every
+pair of vertices, the number paths from one to the
+other.
+
+```julia-repl
+julia> using SemiringFactorizations
+
+julia> A = Int[
+           0 1 1 0 0 0
+           0 0 0 0 0 1
+           0 0 0 1 1 0
+           0 0 0 0 1 0
+           0 0 0 0 0 1
+           0 0 0 0 0 0
+       ];
+
+julia> sinv(A)
+6×6 Matrix{Int64}:
+ 1  1  1  1  2  3
+ 0  1  0  0  0  1
+ 0  0  1  1  2  2
+ 0  0  0  1  1  1
+ 0  0  0  0  1  1
+ 0  0  0  0  0  1
 ```
 
-This problem can be solved using the function `sinv`.
+### Shortest Paths
+
+A weighted graph is a directed graph with a weight
+assigned to each edge. Weighted graphs can be
+represented by adjacency matrices with entries
+in the *min-plus* semiring.
+
+![](assets/shortest.svg)
+
+The quasi-inverse of this matrix contains, for every
+pair of vertices, the weight of the shortest path from
+one to the other.
 
 ```julia-repl
 julia> using SemiringFactorizations, TropicalNumbers
 
 julia> A = TropicalMinPlusF64[
-           Inf 9.0 8.0 Inf
-           Inf Inf 6.0 Inf
-           Inf Inf Inf 7.0
-           5.0 Inf Inf Inf
+           Inf 9.0 1.0 Inf Inf Inf
+           Inf Inf Inf Inf Inf 4.0
+           Inf Inf Inf 2.0 6.0 Inf
+           Inf Inf Inf Inf 3.0 Inf
+           Inf Inf Inf Inf Inf 5.0
+           Inf Inf Inf Inf Inf Inf
        ];
 
 julia> sinv(A)
-4×4 Matrix{TropicalMinPlusF64}:
-  0.0ₛ   9.0ₛ   8.0ₛ  15.0ₛ
- 18.0ₛ   0.0ₛ   6.0ₛ  13.0ₛ
- 12.0ₛ  21.0ₛ   0.0ₛ   7.0ₛ
-  5.0ₛ  14.0ₛ  13.0ₛ   0.0ₛ
+6×6 Matrix{TropicalMinPlusF64}:
+ 0.0ₛ  9.0ₛ  1.0ₛ  3.0ₛ  6.0ₛ  11.0ₛ
+ Infₛ  0.0ₛ  Infₛ  Infₛ  Infₛ   4.0ₛ
+ Infₛ  Infₛ  0.0ₛ  2.0ₛ  5.0ₛ  10.0ₛ
+ Infₛ  Infₛ  Infₛ  0.0ₛ  3.0ₛ   8.0ₛ
+ Infₛ  Infₛ  Infₛ  Infₛ  0.0ₛ   5.0ₛ
+ Infₛ  Infₛ  Infₛ  Infₛ  Infₛ   0.0ₛ
 ```
+
+### Finite Automaton
+
+A finite automaton is a graph with a string assigned
+to each edge. Finite automata can be represented
+by adjacency matrices with entries in the semiring
+of regular expressions.
+
+![](assets/regular.svg)
+
+The quasi-inverse of this matrix contains, for every
+pair of states, the regular expression that brings
+the automaton from one to the other.
+
+```julia-repl
+julia> using SemiringFactorizations
+
+julia> A = RE[
+           "a^" "a"  "a"  "a^" "a^" "a^"
+           "a^" "a^" "a^" "a^" "a^" "c"
+           "a^" "a^" "a^" "c"  "b"  "a^"
+           "a^" "a^" "a^" "a^" "b"  "a^"
+           "a^" "a^" "a^" "a^" "a^" "a"
+           "a^" "a^" "a^" "a^" "a^" "a^"
+       ];
+
+julia> sinv(A)
+6×6 Matrix{RE}:
+     a   a   ac  ab|acb  ac|(?:ab|acb)a
+ a^      a^  a^  a^      c
+ a^  a^      c   b|cb    (?:b|cb)a
+ a^  a^  a^      b       ba
+ a^  a^  a^  a^          a
+ a^  a^  a^  a^  a^      
+```
+
+Note that regular expression `a^` matches nothing,
