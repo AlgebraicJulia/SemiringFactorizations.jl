@@ -57,6 +57,8 @@ y = TropicalMaxPlusF64[x[i].n + d[i] for i in 1:n]
 # any avaliable starting task to the final task
 # In this case the true solution is the path 1 -> 3 -> 5 -> 6 -> 7 -> 8, 
 # total cost 3(1) + 1(1->3) + 4(3) + 1(3->5) + 5(5) + 2(5->6) + 2(6) + 1(6->7) + 6(7) + 0(7->8) + 4(8) = 29
+# It is worth noting that this vector gives us the maximum cost to complete any task given the starting tasks so in cases where 
+# the tasks are not semi sequential we would still get the highest cost for completion. 
 Cmax = maximum([yi.n for yi in y])
 
 println("Max-plus matrix A")
@@ -123,6 +125,8 @@ y = TropicalMinPlusF64[x[i].n + d[i] for i in 1:n]
 # min completion
 # This represents the minimum cost it takes to complete task 8 starting at either task 1 or 2.
 # In this case the true solution is the path 1 -> 6 -> 7 -> 8, total cost 3(1) + 2(1->6) + 2(6) + 1(6->7) + 6(7) + 0(7->8) + 4(8) = 18
+# It is worth noting that this vector gives us the minimum cost to complete any task given the starting tasks so in cases where 
+# the tasks are not semi sequential we would still get the least cost for completion. 
 Cmin = maximum([yi.n for yi in y])
 
 println("Min-plus matrix A")
