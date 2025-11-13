@@ -39,8 +39,9 @@ for (i, j, ℓ) in constraints
 end
 
 # release times: these are the time it takes to start a given task meaning that for example task 1 can start at time = 0
-# or no startup cost, while task 2 can start at time = 1 or 1 unit of startup cost.
-b = TropicalMaxPlusF64[0.0, 1.0, 0.0, 2.0, 0.0, 0.0, 0.0, 0.0]
+# or no startup cost, while task 2 can start at time = 1 or 1 unit of startup cost. If a release value is set to -Inf then
+# we are not able to start from that task, so in this case we can only start from tasks 1 or 2.
+b = TropicalMaxPlusF64[0.0, 1.0, -Inf, -Inf, -Inf, -Inf, -Inf, -Inf]
 
 # Quasi-inverse
 Astar = sinv(A)
