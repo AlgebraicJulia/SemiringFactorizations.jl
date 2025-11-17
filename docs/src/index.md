@@ -154,7 +154,7 @@ julia> sinv(A)
  Infₛ  Infₛ  Infₛ  Infₛ  Infₛ   0.0ₛ
 ```
 
-### Finite Automaton
+### Finite Automata
 
 A finite automaton is a graph with a string assigned
 to each edge. Finite automata can be represented
@@ -189,4 +189,4 @@ julia> sinv(A)
  a^  a^  a^  a^  a^      
 ```
 
-Note that regular expression `a^` matches nothing,
+Note that regular expression `a^` matches nothing.

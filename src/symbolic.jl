@@ -1,10 +1,10 @@
 """
-    SymbolicSemiringLU{I}
+    SymbolicStarLU{I}
 
 A symbolic factorization of a sparse
 semiring-valued matrix.
 """
-struct SymbolicSemiringLU{I}
+struct SymbolicStarLU{I}
     ord::FVector{I}
     res::BipartiteGraph{I, I, FVector{I}, OneTo{I}}
     sep::BipartiteGraph{I, I, FVector{I}, FVector{I}}
@@ -18,7 +18,7 @@ struct SymbolicSemiringLU{I}
     nFval::I
 end
 
-function Base.show(io::IO, ::MIME"text/plain", symb::T) where {T <: SymbolicSemiringLU}
+function Base.show(io::IO, ::MIME"text/plain", symb::T) where {T <: SymbolicStarLU}
     frt = symb.nFval
     nnz = symb.nRval + symb.nLval + symb.nLval
 
@@ -28,13 +28,13 @@ function Base.show(io::IO, ::MIME"text/plain", symb::T) where {T <: SymbolicSemi
 end
 
 """
-    SymbolicSemiringLU(A::SparseMatrixCSC; alg = AMF(), snd = Maximal())
+    SymbolicStarLU(A::SparseMatrixCSC; alg = AMF(), snd = Maximal())
 """
-function SymbolicSemiringLU(matrix::SparseMatrixCSC; alg::PermutationOrAlgorithm = DEFAULT_ELIMINATION_ALGORITHM, snd::SupernodeType = DEFAULT_SUPERNODE_TYPE)
-    return SymbolicSemiringLU(matrix, alg, snd)
+function SymbolicStarLU(matrix::SparseMatrixCSC; alg::PermutationOrAlgorithm = DEFAULT_ELIMINATION_ALGORITHM, snd::SupernodeType = DEFAULT_SUPERNODE_TYPE)
+    return SymbolicStarLU(matrix, alg, snd)
 end
 
-function SymbolicSemiringLU(matrix::SparseMatrixCSC{<:Any, I}, alg::PermutationOrAlgorithm, snd::SupernodeType) where {I <: Integer}
+function SymbolicStarLU(matrix::SparseMatrixCSC{<:Any, I}, alg::PermutationOrAlgorithm, snd::SupernodeType) where {I <: Integer}
     # `digraph` is a directed graph 
     #
     #   D = (V, A)
@@ -151,7 +151,7 @@ function SymbolicSemiringLU(matrix::SparseMatrixCSC{<:Any, I}, alg::PermutationO
     ord = FVector{I}(perm)
     chd = tree.tree.tree.graph
 
-    return SymbolicSemiringLU(ord, res, sep, rel, chd, nMptr, nMval, nNval, nRval, nLval, nFval)
+    return SymbolicStarLU(ord, res, sep, rel, chd, nMptr, nMval, nNval, nRval, nLval, nFval)
 end
 
 function symmetric(graph::AbstractGraph{I}) where {I}

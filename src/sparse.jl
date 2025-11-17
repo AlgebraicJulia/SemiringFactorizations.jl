@@ -1,11 +1,11 @@
 """
-    SparseSemiringLU{T, I} <: AbstractSemiringLU{T}
+    SparseStarLU{T, I} <: AbstractStarLU{T}
 
 An LU factorization of a sparse semiring-
 valued matrix.
 """
-struct SparseSemiringLU{T, I} <: AbstractSemiringLU{T}
-    symb::SymbolicSemiringLU{I}
+struct SparseStarLU{T, I} <: AbstractStarLU{T}
+    symb::SymbolicStarLU{I}
     Rptr::FVector{I}
     Rval::FVector{T}
     Lptr::FVector{I}
@@ -13,7 +13,7 @@ struct SparseSemiringLU{T, I} <: AbstractSemiringLU{T}
     Uval::FVector{T}
 end
 
-function Base.show(io::IO, ::MIME"text/plain", fact::T) where {T <: SparseSemiringLU}
+function Base.show(io::IO, ::MIME"text/plain", fact::T) where {T <: SparseStarLU}
     frt = fact.symb.nFval
     nnz = fact.symb.nRval + fact.symb.nLval + fact.symb.nLval
 
@@ -22,11 +22,7 @@ function Base.show(io::IO, ::MIME"text/plain", fact::T) where {T <: SparseSemiri
     print(io, "\n  Lnz + Unz: $nnz")
 end
 
-# ------------------------------ #
-# Abstract Semiring LU Interface #
-# ------------------------------ #
-
-function Base.size(F::SparseSemiringLU)
+function Base.size(F::SparseStarLU)
     n = convert(Int, nov(F.symb.res))
     return (n, n)
 end
@@ -48,10 +44,10 @@ function slu(
 end
 
 function slu(A::SparseMatrixCSC, alg::PermutationOrAlgorithm, snd::SupernodeType)
-    return slu(A, SymbolicSemiringLU(A, alg, snd))
+    return slu(A, SymbolicStarLU(A, alg, snd))
 end
 
-function slu(matrix::SparseMatrixCSC{T, I}, symb::SymbolicSemiringLU{I}) where {T, I <: Integer}
+function slu(matrix::SparseMatrixCSC{T, I}, symb::SymbolicStarLU{I}) where {T, I <: Integer}
     res = symb.res
     sep = symb.sep
     rel = symb.rel
@@ -95,51 +91,45 @@ function slu(matrix::SparseMatrixCSC{T, I}, symb::SymbolicSemiringLU{I}) where {
     A = permute(matrix, symb.ord, symb.ord)
 
     # copy A into R
-    sslu_copy_R!(Rptr, Rval, res, A)
+    sp_slu_copy_R!(Rptr, Rval, res, A)
 
     # copy A into L
-    sslu_copy_L!(Lptr, Lval, res, sep, A) 
+    sp_slu_copy_L!(Lptr, Lval, res, sep, A) 
 
     # copy A into U
-    sslu_copy_U!(Uval, res, sep, A)
+    sp_slu_copy_U!(Uval, res, sep, A)
 
-    sslu_impl!(Mptr, Mval, Rptr, Rval, Lptr,
+    sp_slu_impl!(Mptr, Mval, Rptr, Rval, Lptr,
         Lval, Uval, Fval, res, rel, chd)
 
-    return SparseSemiringLU(symb, Rptr, Rval, Lptr, Lval, Uval)    
-end
-
-function sinv(A::SparseSemiringLU{T}) where {T}
-    B = zeros(T, size(A))
-    B[diagind(B)] .= one(T)
-    return srdiv!(B, A)
+    return SparseStarLU(symb, Rptr, Rval, Lptr, Lval, Uval)    
 end
 
 """
-    mtsinv(A::SparseSemiringLU)
+    mtstar(A::SparseStarLU)
 
-A multi-threaded version of [`sinv`](@ref).
+A multi-threaded version of [`star`](@ref).
 
 !!! warning
     This feature is experimental and
     subject to change.
 
 """
-function mtsinv(A::SparseSemiringLU{T}) where {T}
+function mtstar(A::SparseStarLU{T}) where {T}
     B = zeros(T, size(A))
-    B[diagind(B)] .= one(T)
-    return mtsldiv!(A, B)
+    fill!(view(B, diagind(B)), one(T))
+    return mtslmul!(A, B)
 end
 
-function sldiv!(A::SparseSemiringLU, B::AbstractVecOrMat)
-    return ssdiv!(A, B, Val(:L))
+function slmul!(A::SparseStarLU, B::AbstractVecOrMat)
+    return sp_smul_impl!(A, B, Val(:L))
 end
 
-function srdiv!(B::AbstractVecOrMat, A::SparseSemiringLU)
-    return ssdiv!(A, B, Val(:R))
+function srmul!(B::AbstractVecOrMat, A::SparseStarLU)
+    return sp_smul_impl!(A, B, Val(:R))
 end
 
-function ssdiv!(A::SparseSemiringLU{T, I}, B::AbstractVecOrMat, side::Val{S}) where {T, I <: Integer, S}
+function sp_smul_impl!(A::SparseStarLU{T, I}, B::AbstractVecOrMat, side::Val{S}) where {T, I <: Integer, S}
     if B isa AbstractVector
         neqn = convert(I, length(B))
         nrhs = one(I)
@@ -186,7 +176,7 @@ function ssdiv!(A::SparseSemiringLU{T, I}, B::AbstractVecOrMat, side::Val{S}) wh
         C .= view(B, :, ord)
     end
 
-    ssdiv_impl!(C, Mptr, Mval, Rptr, Rval, Lptr,
+    sp_smul_impl!(C, Mptr, Mval, Rptr, Rval, Lptr,
         Lval, Uval, Fval, res, rel, chd, side)
 
     if B isa AbstractVector
@@ -201,38 +191,34 @@ function ssdiv!(A::SparseSemiringLU{T, I}, B::AbstractVecOrMat, side::Val{S}) wh
 end
 
 """
-    mtsldiv!(A::SparseSemiringLU, B::AbstractMatrix)
+    mtslmul!(A::SparseStarLU, B::AbstractMatrix)
 
-A multi-threaded version of [`sldiv!`](@ref).
-
-!!! warning
-    This feature is experimental
-    and subject to change.
-
-"""
-function mtsldiv!(A::SparseSemiringLU, B::AbstractMatrix)
-    return mtssdiv!(A, B, Val(:L))
-end
-
-"""
-    mtsrdiv!(B::AbstractMatrix, A::SparseSemiringLU)
-
-A multi-threaded version of [`srdiv!`](@ref).
+A multi-threaded version of [`slmul!`](@ref).
 
 !!! warning
     This feature is experimental
     and subject to change.
 
 """
-function mtsrdiv!(B::AbstractMatrix, A::SparseSemiringLU)
-    return mtssdiv!(A, B, Val(:R))
+function mtslmul!(A::SparseStarLU, B::AbstractMatrix)
+    return sp_mtsmul_impl!(A, B, Val(:L))
 end
 
-function mtssdiv!(A::SparseSemiringLU, B::AbstractVector, side::Val)
-    return ssdiv!(A, B, side)
+"""
+    mtsrmul!(B::AbstractMatrix, A::SparseStarLU)
+
+A multi-threaded version of [`srmul!`](@ref).
+
+!!! warning
+    This feature is experimental
+    and subject to change.
+
+"""
+function mtsrmul!(B::AbstractMatrix, A::SparseStarLU)
+    return sp_mtsmul_impl!(A, B, Val(:R))
 end
 
-function mtssdiv!(A::SparseSemiringLU{T, I}, B::AbstractMatrix, side::Val{S}) where {T, I <: Integer, S}
+function sp_mtsmul_impl!(A::SparseStarLU{T, I}, B::AbstractMatrix, side::Val{S}) where {T, I <: Integer, S}
     if S == :L
         neqn = convert(I, size(B, 1))
         nrhs = convert(I, size(B, 2))
@@ -278,7 +264,7 @@ function mtssdiv!(A::SparseSemiringLU{T, I}, B::AbstractMatrix, side::Val{S}) wh
         Mval = FVector{T}(undef, nNval * size)
         Fval = FVector{T}(undef, nFval * size)
 
-        ssdiv_impl!(C, Mptr, Mval, Rptr, Rval, Lptr,
+        sp_smul_impl!(C, Mptr, Mval, Rptr, Rval, Lptr,
             Lval, Uval, Fval, res, rel, chd, side)
 
         if S == :L
@@ -291,7 +277,7 @@ function mtssdiv!(A::SparseSemiringLU{T, I}, B::AbstractMatrix, side::Val{S}) wh
     return B
 end
 
-function sslu_copy_R!(
+function sp_slu_copy_R!(
         Rptr::AbstractVector{I},
         Rval::AbstractVector{T},
         res::AbstractGraph{I},
@@ -336,7 +322,7 @@ function sslu_copy_R!(
     return
 end
 
-function sslu_copy_L!(
+function sp_slu_copy_L!(
         Lptr::AbstractVector{I},
         Lval::AbstractVector{T},
         res::AbstractGraph{I},
@@ -389,7 +375,7 @@ function sslu_copy_L!(
     return
 end
 
-function sslu_copy_U!(
+function sp_slu_copy_U!(
         Uval::AbstractVector{T},
         res::AbstractGraph{I},
         sep::AbstractGraph{I},
@@ -432,7 +418,7 @@ function sslu_copy_U!(
     return
 end
 
-function sslu_impl!(
+function sp_slu_impl!(
         Mptr::AbstractVector{I},
         Mval::AbstractVector{T},
         Rptr::AbstractVector{I},
@@ -448,14 +434,14 @@ function sslu_impl!(
     ns = zero(I); Mptr[one(I)] = one(I)
 
     for j in vertices(res)
-        ns = sslu_loop!(Mptr, Mval, Rptr, Rval, Lptr,
+        ns = sp_slu_loop!(Mptr, Mval, Rptr, Rval, Lptr,
             Lval, Uval, Fval, res, rel, chd, ns, j)
     end
 
     return
 end
 
-function sslu_loop!(
+function sp_slu_loop!(
         Mptr::AbstractVector{I},
         Mval::AbstractVector{T},
         Rptr::AbstractVector{I},
@@ -526,7 +512,7 @@ function sslu_loop!(
     F₂₂ .= zero(T)
 
     for i in Iterators.reverse(neighbors(chd, j))
-        sslu_add_update!(F, Mptr, Mval, rel, ns, i)
+        sp_slu_add_update!(F, Mptr, Mval, rel, ns, i)
         ns -= one(I)
     end
 
@@ -548,7 +534,7 @@ function sslu_loop!(
     #
     #   B₁₁ ← L₁₁ + U₁₁
     #
-    sgetrf!(B₁₁)
+    slu_impl!(B₁₁)
 
     if ispositive(na)
         ns += one(I)
@@ -566,23 +552,23 @@ function sslu_loop!(
         #
         #   B₂₁ ← B₂₁ U₁₁*
         #   
-        strsm!(B₁₁, B₂₁, Val(:U), Val(:R))
+        smul_impl!(B₁₁, B₂₁, Val(:N), Val(:U), Val(:R))
 
         #
         #   B₁₂ ← L₁₁* B₁₂
         #   
-        strsm!(B₁₁, B₁₂, Val(:L), Val(:L))
+        smul_impl!(B₁₁, B₁₂, Val(:N), Val(:L), Val(:L))
 
         #
         #   B₂₂ ← B₂₂ + B₂₁ B₁₂
         #
-        sgemm!(B₂₂, B₂₁, B₁₂)
+        mul_impl!(B₂₂, B₂₁, B₁₂, Val(:N), Val(:N))
     end
  
     return ns
 end
 
-function ssdiv_impl!(
+function sp_smul_impl!(
         C::AbstractVecOrMat{T},
         Mptr::AbstractVector{I},
         Mval::AbstractVector{T},
@@ -601,20 +587,20 @@ function ssdiv_impl!(
 
     # forward substitution loop
     for j in vertices(res)
-        ns = ssdiv_fwd_loop!(C, Mptr, Mval, Rptr, Rval, Lptr,
+        ns = sp_smul_fwd_loop!(C, Mptr, Mval, Rptr, Rval, Lptr,
             Lval, Uval, Fval, res, rel, chd, ns, j, side)
     end
 
     # backward substitution loop
     for j in reverse(vertices(res))
-        ns = ssdiv_bwd_loop!(C, Mptr, Mval, Rptr, Rval, Lptr,
+        ns = sp_smul_bwd_loop!(C, Mptr, Mval, Rptr, Rval, Lptr,
             Lval, Uval, Fval, res, rel, chd, ns, j, side)
     end
 
     return
 end
 
-function ssdiv_fwd_loop!(
+function sp_smul_fwd_loop!(
         C::AbstractVecOrMat{T},
         Mptr::AbstractVector{I},
         Mval::AbstractVector{T},
@@ -723,7 +709,7 @@ function ssdiv_fwd_loop!(
     F₂ .= zero(T)
 
     for i in Iterators.reverse(neighbors(chd, j))
-        ssdiv_fwd_update!(F, Mptr, Mval, rel, ns, i, side)
+        sp_smul_fwd_update!(F, Mptr, Mval, rel, ns, i, side)
         ns -= one(I)
     end
 
@@ -737,9 +723,9 @@ function ssdiv_fwd_loop!(
     #   C₁ ← B₁₁* C₁
     #
     if S == :L
-        strsm!(B₁₁, C₁, Val(:L), side)
+        smul_impl!(B₁₁, C₁, Val(:N), Val(:L), side)
     else
-        strsm!(B₁₁, C₁, Val(:U), side)
+        smul_impl!(B₁₁, C₁, Val(:N), Val(:U), side)
     end
 
     if ispositive(na)
@@ -766,16 +752,16 @@ function ssdiv_fwd_loop!(
         #   C₂ ← C₂ + B₂₁ C₁
         #
         if S == :L
-            sgemm!(C₂, B₂₁, C₁)
+            mul_impl!(C₂, B₂₁, C₁, Val(:N), Val(:N))
         else
-            sgemm!(C₂, C₁, B₂₁)
+            mul_impl!(C₂, C₁, B₂₁, Val(:N), Val(:N))
         end
     end
 
     return ns
 end
 
-function ssdiv_bwd_loop!(
+function sp_smul_bwd_loop!(
         C::AbstractVecOrMat{T},
         Mptr::AbstractVector{I},
         Mval::AbstractVector{T},
@@ -893,9 +879,9 @@ function ssdiv_bwd_loop!(
         #
 
         if S == :L
-            sgemm!(C₁, B₁₂, C₂)
+            mul_impl!(C₁, B₁₂, C₂, Val(:N), Val(:N))
         else
-            sgemm!(C₁, C₂, B₁₂)
+            mul_impl!(C₁, C₂, B₁₂, Val(:N), Val(:N))
         end
 
         #
@@ -908,9 +894,9 @@ function ssdiv_bwd_loop!(
     #   C₁ ← B₁₁* C₁
     #
     if S == :L
-        strsm!(B₁₁, C₁, Val(:U), side)
+        smul_impl!(B₁₁, C₁, Val(:N), Val(:U), side)
     else
-        strsm!(B₁₁, C₁, Val(:L), side)
+        smul_impl!(B₁₁, C₁, Val(:N), Val(:L), side)
     end
 
     # copy C into F
@@ -921,13 +907,13 @@ function ssdiv_bwd_loop!(
 
     for i in neighbors(chd, j)
         ns += one(I)
-        ssdiv_bwd_update!(F, Mptr, Mval, rel, ns, i, side)
+        sp_smul_bwd_update!(F, Mptr, Mval, rel, ns, i, side)
     end
 
     return ns
 end
 
-function sslu_add_update!(
+function sp_slu_add_update!(
         F::AbstractMatrix{T},
         ptr::AbstractVector{I},
         val::AbstractVector{T},
@@ -965,7 +951,7 @@ function sslu_add_update!(
     return
 end
 
-function ssdiv_fwd_update!(
+function sp_smul_fwd_update!(
         F::AbstractVecOrMat{T},
         ptr::AbstractVector{I},
         val::AbstractVector{T},
@@ -1032,7 +1018,7 @@ function ssdiv_fwd_update!(
     return
 end
 
-function ssdiv_bwd_update!(
+function sp_smul_bwd_update!(
         F::AbstractVecOrMat{T},
         ptr::AbstractVector{I},
         val::AbstractVector{T},
@@ -1098,4 +1084,222 @@ function ssdiv_bwd_update!(
     end
 
     return
+end
+
+# --- #
+# mul #
+# --- #
+
+function mul_impl!(C::AbstractVector, A::AbstractMatrix, B::SparseColumnCSC, tA::Val{:N}, tB::Val)
+    @assert length(C) == size(A, 1)
+    @assert length(B) == size(A, 2)
+    #
+    #   B = Dj
+    #
+    D, j = unpack(B)
+    #
+    #   C ← C + A B
+    #
+    @inbounds for p in nzrange(D, j)
+        Ai = @view A[:, rowvals(D)[p]]
+        #   
+        #   C ← C + Ai Bi
+        #
+         mul_impl!(C, Ai, nonzeros(D)[p], tA, tB)
+    end
+
+    return
+end
+
+function mul_impl!(C::AbstractMatrix, A::AbstractVector, B::SparseColumnCSC, tA::Val{:N}, tB::Val)
+    @assert size(C, 1) == length(A)
+    @assert size(C, 2) == length(B)
+    #
+    #   B = Dj
+    #
+    D, j = unpack(B)
+    #
+    #   C ← C + A B
+    #
+    @inbounds for p in nzrange(D, j)
+        Ci = @view C[:, rowvals(D)[p]]
+        #   
+        #   Ci ← Ci + A Bi
+        #   
+        mul_impl!(Ci, A, nonzeros(D)[p], tA, tB)
+    end
+
+    return
+end
+
+function mul_impl!(C::AbstractVector{T}, A::T, B::SparseColumnCSC{T}, tA::Val, tB::Val) where {T}
+    @assert length(C) == length(B)
+    #
+    #   B = Dj
+    #
+    D, j = unpack(B)
+    #
+    #   C ← C + A B
+    #
+    @inbounds for p in nzrange(D, j)
+        Ci = @view C[rowvals(D)[p]]
+        #
+        #   Ci ← Ai B
+        #
+        mul_impl!(Ci, A, nonzeros(D)[p], tA, tB)
+    end
+
+    return
+end
+
+function mul_impl!(C::AbstractVector{T}, A::SparseColumnCSC{T}, B::T, tA::Val, tB::Val) where {T}
+    @assert length(C) == length(A)
+    #
+    #   A = Dj
+    #
+    D, j = unpack(A)
+    #
+    #   C ← C + A B
+    #
+    @inbounds for p in nzrange(D, j)
+        Ci = @view C[rowvals(D)[p]]
+        #
+        #   Ci ← Ai B
+        #
+        mul_impl!(Ci, nonzeros(D)[p], B, tA, tB)
+    end
+
+    return
+end
+
+function vmuladd(A::SparseColumnCSC{T}, B::AbstractVector{T}) where {T}
+    @assert length(A) == length(B)
+    #
+    #   A = Dj
+    #
+    D, j = unpack(A)
+    #
+    #   C ← A B
+    #
+    C = zero(T)
+
+    @inbounds for p in nzrange(D, j)
+        Bi = B[rowvals(D)[p]]
+        #
+        #   C ← C + Ai Bi
+        #
+        C = muladd(nonzeros(D)[p], Bi, C)
+    end
+
+    return C
+end
+
+function vmuladd(A::AbstractVector{T}, B::SparseColumnCSC{T}) where {T}
+    @assert length(A) == length(B)
+    #
+    #   B = Dj
+    #
+    D, j = unpack(B)
+    #
+    #   C ← A B
+    #
+    C = zero(T)
+
+    @inbounds for p in nzrange(D, j)
+        Ai = A[rowvals(D)[p]]
+        #
+        #   C ← C + Ai Bi
+        #
+        C = muladd(Ai, nonzeros(D)[p], C)
+    end
+
+    return C
+end
+
+function vlresinf(A::SparseColumnCSC{T}, B::AbstractVector{T}) where {T}
+    @assert length(A) == length(B)
+    #
+    #   A = Dj
+    #
+    D, j = unpack(A)
+    #
+    #   C ← A \ B
+    #
+    C = typemax(T)
+
+    @inbounds for p in nzrange(D, j)
+        Bi = B[rowvals(D)[p]]
+        #
+        #   C ← C ∧ Ai \ Bi
+        #
+        C = lresinf(nonzeros(D)[p], Bi, C)
+    end
+
+    return C
+end
+
+function vlresinf(A::AbstractVector{T}, B::SparseColumnCSC{T}) where {T}
+    @assert length(A) == length(B)
+    #
+    #   B = Dj
+    #
+    D, j = unpack(B)
+    #
+    #   C ← A \ B
+    #
+    C = typemax(T)
+
+    @inbounds for p in nzrange(D, j)
+        Ai = A[rowvals(D)[p]]
+        #
+        #   C ← C ∧ Ai \ Bi
+        #
+        C = lresinf(Ai, nonzeros(D)[p], C)
+    end
+
+    return C
+end
+
+function vrresinf(A::SparseColumnCSC{T}, B::AbstractVector{T}) where {T}
+    @assert length(A) == length(B)
+    #
+    #   A = Dj
+    #
+    D, j = unpack(A)
+    #
+    #   C ← A B
+    #
+    C = typemax(T)
+
+    @inbounds for p in nzrange(D, j)
+        Bi = B[rowvals(D)[p]]
+        #
+        #   C ← C ∧ Ai / Bi
+        #
+        C = rresinf(nonzeros(D)[p], Bi, C)
+    end
+
+    return C
+end
+
+function vrresinf(A::AbstractVector{T}, B::SparseColumnCSC{T}) where {T}
+    @assert length(A) == length(B)
+    #
+    #   B = Dj
+    #
+    D, j = unpack(B)
+    #
+    #   C ← A / B
+    #
+    C = typemax(T)
+
+    @inbounds for p in nzrange(D, j)
+        Ai = A[rowvals(D)[p]]
+        #
+        #   C ← C ∧ Ai / Bi
+        #
+        C = rresinf(Ai, nonzeros(D)[p], C)
+    end
+
+    return C
 end
