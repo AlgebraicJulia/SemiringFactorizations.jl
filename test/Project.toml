@@ -6,3 +6,6 @@ SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 SuiteSparseMatrixCollection = "ac199af8-68bc-55b8-82c4-7abd6f96ed98"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 TropicalNumbers = "b3a74e9c-7526-4576-a4eb-79c0d4c32334"
+
+[sources]
+TropicalNumbers = {path = "../../TropicalNumbers.jl"}

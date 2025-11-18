@@ -15,10 +15,10 @@ using Octavian
 using SparseArrays
 using TropicalGEMM
 using TropicalNumbers
-using WiringDiagrams
 
 const DEFAULT_BLOCK_SIZE = 32
 const SparseColumnCSC{T, I} = SubArray{T, 1, SparseMatrixCSC{T, I}, Tuple{Slice{OneTo{Int}}, Int}, false}
+const AbstractRowVector{T, Vec} = Transpose{T, Vec} where {Vec <: AbstractVector{T}}
 
 function unpack(A::SparseColumnCSC)
     return A.parent, A.indices[2]
@@ -33,9 +33,8 @@ export TropicalMinMax, TropicalMinMaxF64, TropicalMinMaxF32,
     TropicalMinMaxI16
 export RE
 export TopN, Top2, Top3, Top4, Top5
-export KleeneAlgebra
 
-include("regular_expression.jl")
+include("re.jl")
 include("topn.jl")
 include("strict_lower_triangular.jl")
 include("scalar.jl")
@@ -43,6 +42,5 @@ include("array.jl")
 include("dense.jl")
 include("symbolic.jl")
 include("sparse.jl")
-include("kleene_algebras.jl")
 
 end

@@ -1,11 +1,10 @@
 using Graphs
 using LinearAlgebra
 using MatrixMarket
-using SemiringFactorizations
+using SemiringFactorizations, SemiringFactorizations.TropicalNumbers
 using SparseArrays
 using SuiteSparseMatrixCollection
 using Test
-using TropicalNumbers
 
 function readmatrix(name::String)
     ssmc = ssmc_db()
@@ -20,6 +19,7 @@ end
 @testset "(ℝ ∪ {+∞}, +, ×, 0, 1)" begin
     for name in ("swang1", "wang1", "wang3", "ex1", "ex10", "ex10hs")
         A = readmatrix(name)
+        F = slu(A)
 
         m = 10
         n = size(A, 1)
@@ -27,14 +27,14 @@ end
         B = rand(n, m)
         b = rand(n)
 
-        @test slmul(A, B) ≈ (I - A) \ B
-        @test slmul(A, b) ≈ (I - A) \ b
+        @test slmul(F, B) ≈ (I - A) \ B
+        @test slmul(F, b) ≈ (I - A) \ b
 
         C = B |> transpose
         c = b |> transpose
 
-        @test srmul(C, A) ≈ C / (I - A)
-        @test srmul(b, A) |> transpose ≈ c / (I - A)
+        @test srmul(C, F) ≈ C / (I - A)
+        @test srmul(c, F) ≈ c / (I - A)
     end
 end
 
@@ -112,12 +112,12 @@ end
 
 @testset "Regular expressions" begin
     A = RE[
-        "a^" "a"  "a"  "a^" "a^" "a^"
-        "a^" "a^" "a^" "a^" "a^" "c"
-        "a^" "a^" "a^" "c"  "b"  "a^"
-        "a^" "a^" "a^" "a^" "b"  "a^" 
-        "a^" "a^" "a^" "a^" "a^" "a"
-        "a^" "a^" "a^" "a^" "a^" "a^"
+       '∅' 'a' 'a' '∅' '∅' '∅'
+       '∅' '∅' '∅' '∅' '∅' 'c'
+       '∅' '∅' '∅' 'c' 'b' '∅'
+       '∅' '∅' '∅' '∅' 'b' '∅'
+       '∅' '∅' '∅' '∅' '∅' 'a'
+       '∅' '∅' '∅' '∅' '∅' '∅'
     ]
 
     B = star(A)

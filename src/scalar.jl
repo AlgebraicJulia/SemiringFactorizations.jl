@@ -1,25 +1,3 @@
-# For our purposes, a closed semiring is a sextuple (S, +, ×, 0, 1, *), where
-#
-#      +: S × S → S
-#      ×: S × S → S
-#      *: S × S → S
-#
-# are "addition", "multiplication", and "closure" operations, and
-#
-#      0 ∈ S
-#      1 ∈ S
-#
-# are "zero" and "one" elements satisfying the following identities.
-#
-#   - a + (b + c) = (a + b) + c    addition is associative
-#   - a × (b × c) = (a × b) × c    multiplication is associative
-#   - a + 0 = a                    0 is a unit for addition
-#   - a × 1 = 1 × a = a            1 is a unit for multiplication
-#   - a + b = b + a                addition is commutative
-#   - a × (b + c) = a × b + a × c  multiplication distritributes over addition
-#     (b + c) × a = b × a + c × a
-#   - a* = 1 + a × a* = 1 + a* × a
-#
 const CommutativeSemiring = Union{
     AbstractFloat,
     Complex,
@@ -34,22 +12,22 @@ const CommutativeSemiring = Union{
     TopN,
 }
 
+"""
+    lres(a, b)
+
+Compute the residual a \\ b.
+"""
 function lres(a, b)
     return a \ b
 end
 
+"""
+    rres(b, a)
+
+Compute the residual b / a.
+"""
 function rres(b, a)
     return b / a
-end
-
-# FIXME
-function slres(a, b)
-    return lres(star(a), b)
-end
-
-# FIXME
-function srres(b, a)
-    return rres(b, star(a))
 end
 
 function lresinf(a, b, c)
@@ -62,22 +40,37 @@ end
 
 const ⋋ = lres
 const ⋌ = rres
+const ∧ = inf
 
 """
     star(a)
 
-Compute the closure of a.
+Compute the Kleene star a*.
 """
 function star(a)
     return srmul(one(a), a)
 end
 
+function star(a::RE)
+    if a.head == :zero || a.head == :one
+        c = one(RE)
+    elseif a.head == :top || a.head == :star
+        c = a
+    else
+        c = RE(:star, true, a)
+    end
+
+    return c
+end
+
 """
     slmul(a, b)
 
-Compute ``a^* b``.
+Compute the product a* b.
 """
-slmul(a, b)
+function slmul(a, b)
+    return star(a) * b
+end
 
 function slmul(::Number, ::Missing)
     return missing
@@ -129,15 +122,10 @@ function slmul(a::T, b::T) where {T <: Union{TropicalMaxPlus, TropicalMinPlus, T
     return c
 end
 
-function slmul(a::RegularExpression, b::RegularExpression)
-    if iszero(a) || isone(a)
-        c = b
-    else
-        c = RegularExpression(nmg(a.str) * "*") * b
-    end
-
-    return c
+function slmul(a::RE, b::RE)
+    return star(a) * b
 end
+
 
 function slmul(a::TopN{N, T}, b::TopN{N, T}) where {N, T}
     if !any(>(typemin(T)), b)
@@ -162,9 +150,11 @@ end
 """
     srmul(b, a)
 
-Compute ``b a^*``.
+Compute the product b a*.
 """
-srmul(b, a)
+function srmul(b, a)
+    return b * star(a)
+end
 
 function srmul(::Number, ::Missing)
     return missing
@@ -182,20 +172,18 @@ function srmul(b::T, a::T) where {T <: CommutativeSemiring}
     return slmul(a, b)
 end
 
-function srmul(b::RegularExpression, a::RegularExpression)
-    if iszero(a) || isone(a)
-        c = b
-    else
-        c = b * RegularExpression(nmg(a.str) * "*")
-    end
-
-    return c
-end
-
 """
     slres(a, b)
+
+Compute the residual a* \\ b
 """
-slres(a, b)
+function slres(a, b)
+    return lres(star(a), b)
+end
+
+function slres(a::T, b::T) where {T <: Union{TropicalAndOr, TropicalBitwise, TropicalMaxMin}}
+    return b
+end
 
 function slres(a::T, b::T) where {T <: Union{TropicalMaxPlus, TropicalMinPlus, TropicalMaxMul}}
     if a <= one(T) || b >= typemax(T)
@@ -205,6 +193,15 @@ function slres(a::T, b::T) where {T <: Union{TropicalMaxPlus, TropicalMinPlus, T
     end
 
     return c
+end
+
+"""
+    srres(b, a)
+
+Compute the residual b / a*.
+"""
+function srres(b, a)
+    return rres(b, star(a))
 end
 
 function srres(b::T, a::T) where {T <: CommutativeSemiring}

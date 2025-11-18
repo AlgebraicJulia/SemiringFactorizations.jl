@@ -167,22 +167,22 @@ the automaton from one to the other.
 julia> using SemiringFactorizations
 
 julia> A = RE[
-           "a^" "a"  "a"  "a^" "a^" "a^"
-           "a^" "a^" "a^" "a^" "a^" "c"
-           "a^" "a^" "a^" "c"  "b"  "a^"
-           "a^" "a^" "a^" "a^" "b"  "a^"
-           "a^" "a^" "a^" "a^" "a^" "a"
-           "a^" "a^" "a^" "a^" "a^" "a^"
+           '∅' 'a' 'a' '∅' '∅' '∅'
+           '∅' '∅' '∅' '∅' '∅' 'c'
+           '∅' '∅' '∅' 'c' 'b' '∅'
+           '∅' '∅' '∅' '∅' 'b' '∅'
+           '∅' '∅' '∅' '∅' '∅' 'a'
+           '∅' '∅' '∅' '∅' '∅' '∅'
        ];
 
 julia> star(A)
 6×6 Matrix{RE}:
-     a   a   ac  ab|acb  ac|(?:ab|acb)a
- a^      a^  a^  a^      c
- a^  a^      c   b|cb    (?:b|cb)a
- a^  a^  a^      b       ba
- a^  a^  a^  a^          a
- a^  a^  a^  a^  a^      
+ ε  a  a  ac  (acb)|(ab)  (((acb)|(ab))a)|(ac)
+ ∅  ε  ∅  ∅   ∅           c
+ ∅  ∅  ε  c   (cb)|b      ((cb)|b)a
+ ∅  ∅  ∅  ε   b           ba
+ ∅  ∅  ∅  ∅   ε           a
+ ∅  ∅  ∅  ∅   ∅           ε
 ```
 
 Note that regular expression `a^` matches nothing.

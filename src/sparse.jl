@@ -1,9 +1,3 @@
-"""
-    SparseStarLU{T, I} <: AbstractStarLU{T}
-
-An LU factorization of a sparse semiring-
-valued matrix.
-"""
 struct SparseStarLU{T, I} <: AbstractStarLU{T}
     symb::SymbolicStarLU{I}
     Rptr::FVector{I}
@@ -27,14 +21,6 @@ function Base.size(F::SparseStarLU)
     return (n, n)
 end
 
-"""
-    slu(A::SparseMatricCSC; alg=AMF(), snd=Maximal())
-
-Compute an LU factorization of a sparse
-semiring-valued matrix A, optionally specifying
-an elimination algorithm `alg` and supernode
-type `snd`.
-"""
 function slu(
         A::SparseMatrixCSC;
         alg::PermutationOrAlgorithm = DEFAULT_ELIMINATION_ALGORITHM,
@@ -109,11 +95,6 @@ end
     mtstar(A::SparseStarLU)
 
 A multi-threaded version of [`star`](@ref).
-
-!!! warning
-    This feature is experimental and
-    subject to change.
-
 """
 function mtstar(A::SparseStarLU{T}) where {T}
     B = zeros(T, size(A))
@@ -122,14 +103,36 @@ function mtstar(A::SparseStarLU{T}) where {T}
 end
 
 function slmul!(A::SparseStarLU, B::AbstractVecOrMat)
-    return sp_smul_impl!(A, B, Val(:L))
+    sp_smul_impl!(A, B, Val(:N), Val(:L))
+    return B
 end
 
-function srmul!(B::AbstractVecOrMat, A::SparseStarLU)
-    return sp_smul_impl!(A, B, Val(:R))
+function srmul!(B::AbstractMatrix, A::SparseStarLU)
+    sp_smul_impl!(A, B, Val(:N), Val(:R))
+    return B
 end
 
-function sp_smul_impl!(A::SparseStarLU{T, I}, B::AbstractVecOrMat, side::Val{S}) where {T, I <: Integer, S}
+function srmul!(B::AbstractRowVector, A::SparseStarLU)
+    sp_smul_impl!(A, parent(B), Val(:N), Val(:R))
+    return B
+end
+
+function slres!(A::SparseStarLU, B::AbstractVecOrMat)
+    sp_smul_impl!(A, B, Val(:C), Val(:L))
+    return B
+end
+
+function srres!(B::AbstractMatrix, A::SparseStarLU)
+    sp_smul_impl!(A, B, Val(:C), Val(:R))
+    return B
+end
+
+function srres!(B::AbstractRowVector, A::SparseStarLU)
+    sp_smul_impl!(A, parent(B), Val(:C), Val(:R))
+    return B
+end
+
+function sp_smul_impl!(A::SparseStarLU{T, I}, B::AbstractVecOrMat, tA::Val, side::Val{S}) where {T, I <: Integer, S}
     if B isa AbstractVector
         neqn = convert(I, length(B))
         nrhs = one(I)
@@ -169,56 +172,58 @@ function sp_smul_impl!(A::SparseStarLU{T, I}, B::AbstractVecOrMat, side::Val{S})
     end
 
     if B isa AbstractVector
-        C .= view(B, ord)
+        copyto!(C, view(B, ord))
     elseif S == :L
-        C .= view(B, ord, :)
+        copyto!(C, view(B, ord, :))
     else
-        C .= view(B, :, ord)
+        copyto!(C, view(B, :, ord))
     end
 
     sp_smul_impl!(C, Mptr, Mval, Rptr, Rval, Lptr,
-        Lval, Uval, Fval, res, rel, chd, side)
+        Lval, Uval, Fval, res, rel, chd, tA, side)
 
     if B isa AbstractVector
-        view(B, ord) .= C
+        copyto!(view(B, ord), C)
     elseif S == :L
-        view(B, ord, :) .= C
+        copyto!(view(B, ord, :), C)
     else
-        view(B, :, ord) .= C
+        copyto!(view(B, :, ord), C)
     end
 
-    return B
+    return
 end
 
 """
     mtslmul!(A::SparseStarLU, B::AbstractMatrix)
 
 A multi-threaded version of [`slmul!`](@ref).
-
-!!! warning
-    This feature is experimental
-    and subject to change.
-
 """
 function mtslmul!(A::SparseStarLU, B::AbstractMatrix)
-    return sp_mtsmul_impl!(A, B, Val(:L))
+    sp_mtsmul_impl!(A, B, Val(:N), Val(:L))
+    return B
 end
 
 """
     mtsrmul!(B::AbstractMatrix, A::SparseStarLU)
 
 A multi-threaded version of [`srmul!`](@ref).
-
-!!! warning
-    This feature is experimental
-    and subject to change.
-
 """
 function mtsrmul!(B::AbstractMatrix, A::SparseStarLU)
-    return sp_mtsmul_impl!(A, B, Val(:R))
+    sp_mtsmul_impl!(A, B, Val(:N), Val(:R))
+    return B
 end
 
-function sp_mtsmul_impl!(A::SparseStarLU{T, I}, B::AbstractMatrix, side::Val{S}) where {T, I <: Integer, S}
+function mtslres!(A::SparseStarLU, B::AbstractMatrix)
+    sp_mtsmul_impl!(A, B, Val(:C), Val(:L))
+    return B
+end
+
+function mtsrres!(B::AbstractMatrix, A::SparseStarLU)
+    sp_mtsmul_impl!(A, B, Val(:C), Val(:R))
+    return B
+end
+
+function sp_mtsmul_impl!(A::SparseStarLU{T, I}, B::AbstractMatrix, tA::Val, side::Val{S}) where {T, I <: Integer, S}
     if S == :L
         neqn = convert(I, size(B, 1))
         nrhs = convert(I, size(B, 2))
@@ -255,9 +260,9 @@ function sp_mtsmul_impl!(A::SparseStarLU{T, I}, B::AbstractMatrix, side::Val{S})
         end
 
         if S == :L
-            C .= view(B, ord, strt:stop)
+            copyto!(C, view(B, ord, strt:stop))
         else
-            C .= view(B, strt:stop, ord)
+            copyto!(C, view(B, strt:stop, ord))
         end
 
         Mptr = FVector{I}(undef, nMptr)
@@ -265,16 +270,16 @@ function sp_mtsmul_impl!(A::SparseStarLU{T, I}, B::AbstractMatrix, side::Val{S})
         Fval = FVector{T}(undef, nFval * size)
 
         sp_smul_impl!(C, Mptr, Mval, Rptr, Rval, Lptr,
-            Lval, Uval, Fval, res, rel, chd, side)
+            Lval, Uval, Fval, res, rel, chd, tA, side)
 
         if S == :L
-            view(B, ord, strt:stop) .= C
+            copyto!(view(B, ord, strt:stop), C)
         else
-            view(B, strt:stop, ord) .= C
+            copyto!(view(B, strt:stop, ord), C)
         end
     end
 
-    return B
+    return
 end
 
 function sp_slu_copy_R!(
@@ -504,12 +509,14 @@ function sp_slu_loop!(
     #     F₁₁ ← B₁₁
     #     F₂₁ ← B₂₁
     #     F₁₂ ← B₁₂
-    #     F₂₂ ← 0
     #
-    F₁₁ .= B₁₁
-    F₂₁ .= B₂₁
-    F₁₂ .= B₁₂
-    F₂₂ .= zero(T)
+    copyto!(F₁₁, B₁₁)
+    copyto!(F₂₁, B₂₁)
+    copyto!(F₁₂, B₁₂)
+    #
+    #    F₂₂ ← 0
+    #
+    fill!(F₂₂, zero(T))
 
     for i in Iterators.reverse(neighbors(chd, j))
         sp_slu_add_update!(F, Mptr, Mval, rel, ns, i)
@@ -522,9 +529,9 @@ function sp_slu_loop!(
     #     B₂₁ ← F₂₁
     #     B₁₂ ← F₁₂
     #
-    B₁₁ .= F₁₁
-    B₂₁ .= F₂₁
-    B₁₂ .= F₁₂
+    copyto!(B₁₁, F₁₁)
+    copyto!(B₂₁, F₂₁)
+    copyto!(B₁₂, F₁₂)
 
     # factorize B₁₁ as
     #
@@ -581,6 +588,7 @@ function sp_smul_impl!(
         res::AbstractGraph{I},
         rel::AbstractGraph{I}, 
         chd::AbstractGraph{I},
+        tA::Val,
         side::Val,
     ) where {T, I <: Integer}
     ns = zero(I); Mptr[one(I)] = one(I)
@@ -588,13 +596,13 @@ function sp_smul_impl!(
     # forward substitution loop
     for j in vertices(res)
         ns = sp_smul_fwd_loop!(C, Mptr, Mval, Rptr, Rval, Lptr,
-            Lval, Uval, Fval, res, rel, chd, ns, j, side)
+            Lval, Uval, Fval, res, rel, chd, ns, j, tA, side)
     end
 
     # backward substitution loop
     for j in reverse(vertices(res))
         ns = sp_smul_bwd_loop!(C, Mptr, Mval, Rptr, Rval, Lptr,
-            Lval, Uval, Fval, res, rel, chd, ns, j, side)
+            Lval, Uval, Fval, res, rel, chd, ns, j, tA, side)
     end
 
     return
@@ -615,8 +623,9 @@ function sp_smul_fwd_loop!(
         chd::AbstractGraph{I},
         ns::I,
         j::I,
-        side::Val{S}
-    ) where {T, I, S}
+        tA::Val{R},
+        side::Val{S},
+    ) where {T, I, R, S}
     #
     #   nrhs is the number of columns in C
     #
@@ -681,7 +690,7 @@ function sp_smul_fwd_loop!(
     Lp = Lptr[j]
     B₁₁ = reshape(view(Rval, Rp:Rp + nn * nn - one(I)), nn, nn)
 
-    if S == :L
+    if R == :N && S == :L || R == :C && S == :R
         B₂₁ = reshape(view(Lval, Lp:Lp + nn * na - one(I)), na, nn)
     else
         B₂₁ = reshape(view(Uval, Lp:Lp + nn * na - one(I)), nn, na)
@@ -703,13 +712,19 @@ function sp_smul_fwd_loop!(
     # copy C into F
     #
     #   F₁ ← C₁
+    #
+    copyto!(F₁, C₁)
+    #
     #   F₂ ← 0
     #
-    F₁ .= C₁
-    F₂ .= zero(T)
+    if R == :N
+        fill!(F₂, zero(T))
+    else
+        fill!(F₂, typemax(T))
+    end
 
     for i in Iterators.reverse(neighbors(chd, j))
-        sp_smul_fwd_update!(F, Mptr, Mval, rel, ns, i, side)
+        sp_smul_fwd_update!(F, Mptr, Mval, rel, ns, i, tA, side)
         ns -= one(I)
     end
 
@@ -717,15 +732,14 @@ function sp_smul_fwd_loop!(
     #   
     #   C₁ ← F₁
     #
-    C₁ .= F₁
-
+    copyto!(C₁, F₁)
     #
     #   C₁ ← B₁₁* C₁
     #
-    if S == :L
-        smul_impl!(B₁₁, C₁, Val(:N), Val(:L), side)
+    if R == :N && S == :L || R == :C && S == :R
+        smul_impl!(B₁₁, C₁, tA, Val(:L), side)
     else
-        smul_impl!(B₁₁, C₁, Val(:N), Val(:U), side)
+        smul_impl!(B₁₁, C₁, tA, Val(:U), side)
     end
 
     if ispositive(na)
@@ -742,19 +756,17 @@ function sp_smul_fwd_loop!(
         else
             C₂ = reshape(view(Mval, strt:stop - one(I)), nrhs, na)
         end
-
         #
         #   C₂ ← F₂
         #
-        C₂ .= F₂
-
+        copyto!(C₂, F₂)
         #
         #   C₂ ← C₂ + B₂₁ C₁
         #
         if S == :L
-            mul_impl!(C₂, B₂₁, C₁, Val(:N), Val(:N))
+            mul_impl!(C₂, B₂₁, C₁, tA, Val(:N))
         else
-            mul_impl!(C₂, C₁, B₂₁, Val(:N), Val(:N))
+            mul_impl!(C₂, C₁, B₂₁, Val(:N), tA)
         end
     end
 
@@ -776,8 +788,9 @@ function sp_smul_bwd_loop!(
         chd::AbstractGraph{I},
         ns::I,
         j::I,
+        tA::Val{R},
         side::Val{S},
-    ) where {T, I <: Integer, S}
+    ) where {T, I <: Integer, R, S}
     #
     #   nrhs is the number of columns in C
     #
@@ -841,7 +854,7 @@ function sp_smul_bwd_loop!(
     Lp = Lptr[j]
     B₁₁ = reshape(view(Rval, Rp:Rp + nn * nn - one(I)), nn, nn)
 
-    if S == :L
+    if R == :N && S == :L || R == :C && S == :R
         B₁₂ = reshape(view(Uval, Lp:Lp + nn * na - one(I)), nn, na)
     else
         B₁₂ = reshape(view(Lval, Lp:Lp + nn * na - one(I)), na, nn)
@@ -873,37 +886,34 @@ function sp_smul_bwd_loop!(
         end
 
         ns -= one(I)
-
         #
         #   C₁ ← C₁ + B₁₂ C₂
         #
-
         if S == :L
-            mul_impl!(C₁, B₁₂, C₂, Val(:N), Val(:N))
+            mul_impl!(C₁, B₁₂, C₂, tA, Val(:N))
         else
-            mul_impl!(C₁, C₂, B₁₂, Val(:N), Val(:N))
+            mul_impl!(C₁, C₂, B₁₂, Val(:N), tA)
         end
-
         #
         #   F₂ ← M₂
         #
-        F₂ .= C₂
+        copyto!(F₂, C₂)
     end
 
     #
     #   C₁ ← B₁₁* C₁
     #
-    if S == :L
-        smul_impl!(B₁₁, C₁, Val(:N), Val(:U), side)
+    if R == :N && S == :L || R == :C && S == :R
+        smul_impl!(B₁₁, C₁, tA, Val(:U), side)
     else
-        smul_impl!(B₁₁, C₁, Val(:N), Val(:L), side)
+        smul_impl!(B₁₁, C₁, tA, Val(:L), side)
     end
 
     # copy C into F
     #
     #   F₁ ← C₁
     #
-    F₁ .= C₁
+    copyto!(F₁, C₁)
 
     for i in neighbors(chd, j)
         ns += one(I)
@@ -958,8 +968,9 @@ function sp_smul_fwd_update!(
         rel::AbstractGraph{I},
         ns::I,
         i::I,
+        tA::Val{R},
         side::Val{S},
-    ) where {T, I, S}
+    ) where {T, I <: Integer, R, S}
     #
     #   nrhs is the number of columns in F
     #
@@ -999,18 +1010,30 @@ function sp_smul_fwd_update!(
     #
     if F isa AbstractVector
         @inbounds for v in oneto(na)
-            F[inj[v]] += C[v]
+            if R == :N
+                F[inj[v]] += C[v]
+            else
+                F[inj[v]] = inf(F[inj[v]], C[v])
+            end
         end
     elseif S == :L
         @inbounds for w in oneto(nrhs), v in oneto(na)
-            F[inj[v], w] += C[v, w]
+            if R == :N
+                F[inj[v], w] += C[v, w]
+            else
+                F[inj[v], w] = inf(F[inj[v], w], C[v, w])
+            end
         end
     else
         @inbounds for v in oneto(na)
             iv = inj[v]
 
             for w in oneto(nrhs)
-                F[w, iv] += C[w, v]
+                if R == :N
+                    F[w, iv] += C[w, v]
+                else
+                    F[w, iv] = inf(F[w, iv], C[w, v])
+                end
             end
         end
     end
@@ -1026,7 +1049,7 @@ function sp_smul_bwd_update!(
         ns::I,
         i::I,
         side::Val{S},
-    ) where {T, I, S}
+    ) where {T, I <: Integer, S}
     #
     #   nrhs is the number of columns in F
     #

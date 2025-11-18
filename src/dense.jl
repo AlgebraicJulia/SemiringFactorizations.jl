@@ -1,9 +1,3 @@
-"""
-    StarLU{T, M <: AbstractMatrix{T}} <: AbstractStarLU{T}
-
-An LU factorization of a semiring-valued
-matrix.
-"""
 struct StarLU{T, M <: AbstractMatrix{T}} <: AbstractStarLU{T}
     factors::M
 end
@@ -116,8 +110,8 @@ end
 # srmul! #
 # ------ #
 
-function slmul!(A::Number, B::AbstractVecOrMat)
-    smul_impl!(A, B, Val(:N), Val(:U), Val(:L))
+function slmul!(A::Number, B::AbstractRowVector)
+    smul_impl!(A, parent(B), Val(:N), Val(:U), Val(:L))
     return B
 end
 
@@ -135,22 +129,32 @@ function slmul!(A::StarLU, B::AbstractVecOrMat)
     return slmul!(A.U, slmul!(A.L, B))
 end
 
-function srmul!(B::AbstractVecOrMat, A::Number)
+function srmul!(B::AbstractVector, A::Number)
     smul_impl!(A, B, Val(:N), Val(:U), Val(:R))
     return B
 end
 
-function srmul!(B::AbstractVecOrMat, A::StrictLowerTriangular)
+function srmul!(B::AbstractMatrix, A::StrictLowerTriangular)
     smul_impl!(parent(A), B, Val(:N), Val(:L), Val(:R))
     return B
 end
 
-function srmul!(B::AbstractVecOrMat, A::UpperTriangular)
+function srmul!(B::AbstractRowVector, A::StrictLowerTriangular)
+    smul_impl!(parent(A), parent(B), Val(:N), Val(:L), Val(:R))
+    return B
+end
+
+function srmul!(B::AbstractMatrix, A::UpperTriangular)
     smul_impl!(parent(A), B, Val(:N), Val(:U), Val(:R))
     return B
 end
 
-function srmul!(B::AbstractVecOrMat, A::StarLU)
+function srmul!(B::AbstractRowVector, A::UpperTriangular)
+    smul_impl!(parent(A), parent(B), Val(:N), Val(:U), Val(:R))
+    return B
+end
+
+function srmul!(B::AbstractMatrix, A::StarLU)
     return srmul!(srmul!(B, A.U), A.L)
 end
 
@@ -168,17 +172,27 @@ function slres!(A::UpperTriangular, B::AbstractVecOrMat)
     return B
 end
 
-function srres!(B::AbstractVecOrMat, A::StarLU)
+function srres!(B::AbstractMatrix, A::StarLU)
     return srres!(srres!(B, A.L), A.U)
 end
 
-function srres!(B::AbstractVecOrMat, A::StrictLowerTriangular)
+function srres!(B::AbstractMatrix, A::StrictLowerTriangular)
     smul_impl!(parent(A), B, Val(:C), Val(:L), Val(:R))
     return B
 end
 
-function srres!(B::AbstractVecOrMat, A::UpperTriangular)
+function srres!(B::AbstractRowVector, A::StrictLowerTriangular)
+    smul_impl!(parent(A), parent(B), Val(:C), Val(:L), Val(:R))
+    return B
+end
+
+function srres!(B::AbstractMatrix, A::UpperTriangular)
     smul_impl!(parent(A), B, Val(:C), Val(:U), Val(:R))
+    return B
+end
+
+function srres!(B::AbstractRowVector, A::UpperTriangular)
+    smul_impl!(parent(A), parent(B), Val(:C), Val(:U), Val(:R))
     return B
 end
 
@@ -297,7 +311,7 @@ function smul_impl!(A::AbstractMatrix{T}, B::AbstractVecOrMat{T}, tA::Val{:C}, u
         stop = strt + size - 1
         #
         #   A = [ Abb Abn ]
-        #       [ Anb Ann ]
+        #       [     Ann ]
         #
         Abb = @view A[strt:stop, strt:stop]
         Abn = @view A[strt:stop, stop + 1:n]

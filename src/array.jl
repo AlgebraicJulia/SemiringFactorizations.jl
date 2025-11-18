@@ -1,86 +1,78 @@
 abstract type AbstractStarLU{T} end
 
 """
-    size(F::AbstractStarLU)
-
-Get the size of a factorized matrix.
-"""
-Base.size(F::AbstractStarLU)
-
-"""
-    slu!(A::AbstractMatrix)
-
-Compute an LU factorization of a semiring-
-valued matrix A, over-writing A with the factors.
-"""
-slu!(A::AbstractMatrix)
-
-"""
     slu(A::AbstractMatrix)
 
-Compute an LU factorization of a semiring-
-valued matrix A.
+Compute an LU factorization of the Kleene star A*.
+A factorization object F can be used to quickly compute
+
+- star(F)
+- slmul(F, B)
+- srmul(B, F)
+- slres(F, B)
+- srres(B, F)
+
 """
 function slu(A::AbstractMatrix)
     return slu!(FMatrix(A))
 end
 
-"""
-"""
-function star(A::Union{AbstractMatrix{T}, AbstractStarLU{T}}) where {T}
+function star(A::AbstractMatrix)
+    return star(slu(A))
+end
+
+function star(A::AbstractStarLU{T}) where {T}
     B = zeros(T, size(A))
     fill!(view(B, diagind(B)), one(T))
     return srmul!(B, A)
 end
 
-"""
-"""
-function slmul(A, B::AbstractVecOrMat)
+function slmul(A::AbstractStarLU, B::AbstractVecOrMat)
     return slmul!(A, Array(B))
 end
 
-"""
-    slmul!(A, B::AbstractVecOrMat)
-
-Solve the linear fixed-point equation
-
-```math
-    AX + B = X,
-```
-
-over-writing B with the solution.
-"""
-function slmul!(A::AbstractMatrix, B::AbstractVecOrMat)
-    return slmul!(slu(A), B)
+function slmul(A::AbstractMatrix, B::AbstractVecOrMat)
+    return jacobi(A, B, Val(:N), Val(:L))
 end
 
-"""
-"""
-function srmul(B::AbstractVecOrMat, A)
-    return srmul!(Array(B), A)
+function srmul(B::AbstractMatrix, A::AbstractStarLU)
+    return srmul!(Matrix(B), A)
 end
 
-"""
-    srmul!(B::AbstractVecOrMat, A)
-
-Solve the linear fixed-point equation
-
-```math
-    XA + B = X,
-```
-
-over-writing B with the solution.
-"""
-function srmul!(B::AbstractVecOrMat, A::AbstractMatrix)
-    return srmul!(B, slu(A))
+function srmul(B::AbstractRowVector, A::AbstractStarLU)
+    return srmul!(Vector(parent(B)) |> transpose, A)
 end
 
-function slres(A, B::AbstractVecOrMat)
+function srmul(B::AbstractMatrix, A::AbstractMatrix)
+    return jacobi(A, B, Val(:N), Val(:R))
+end
+
+function srmul(B::AbstractRowVector, A::AbstractMatrix)
+    return jacobi(A, parent(B), Val(:N), Val(:R)) |> transpose
+end
+
+function slres(A::AbstractStarLU, B::AbstractVecOrMat)
     return slres!(A, Array(B))
 end
 
-function srres(B::AbstractVecOrMat, A)
-    return srres!(Array(B), A)
+function slres(A::AbstractMatrix, B::AbstractVecOrMat)
+    return jacobi(A, B, Val(:C), Val(:L))
+end
+
+function srres(B::AbstractMatrix, A::AbstractStarLU)
+    return srres!(Matrix(B), A)
+end
+
+function srres(B::AbstractRowVector, A::AbstractStarLU)
+    return srres!(Vector(parent(B)) |> transpose, A)
+end
+
+function srres(B::AbstractMatrix, A::AbstractMatrix)
+    return jacobi(A, B, Val(:C), Val(:R))
+end
+
+function srres(B::AbstractRowVector, A::AbstractMatrix)
+    return jacobi(A, parent(B), Val(:C), Val(:R)) |> transpose
 end
 
 function Base.:*(A::AbstractStarLU, B::AbstractVecOrMat)
@@ -111,6 +103,10 @@ function mul(A::AbstractMatrix{T}, B::AbstractVector{T}) where {T}
     return C
 end
 
+function mul(A::AbstractRowVector, B::AbstractVector)
+    return vmuladd(parent(A), B)
+end
+
 function lres(A::AbstractStarLU, B::AbstractVecOrMat)
     return slres(A, B)
 end
@@ -127,7 +123,11 @@ function lres(A::AbstractMatrix{T}, B::AbstractVector{T}) where {T}
     return C
 end
 
-function rres(B::AbstractVecOrMat, A::AbstractStarLU)
+function lres(A::AbstractRowVector, B::AbstractVector)
+    return vlresinf(parent(A), B)
+end
+
+function rres(B::AbstractMatrix, A::AbstractStarLU)
     return srres(B, A)
 end
 
@@ -137,16 +137,20 @@ function rres(B::AbstractMatrix{T}, A::AbstractMatrix{T}) where {T}
     return C
 end
 
-function rres(B::AbstractVector{T}, A::AbstractMatrix{T}) where {T}
+function rres(B::AbstractRowVector{T}, A::AbstractMatrix{T}) where {T}
     C = fill(typemax(T), size(A, 1))
-    mul_impl!(C, B, A, Val(:N), Val(:C))
-    return C
+    mul_impl!(C, parent(B), A, Val(:N), Val(:C))
+    return transpose(C)
 end
 
-function mul_impl!(C::AbstractMatrix, A::AbstractMatrix, B::AbstractMatrix, tA::Val{TA}, tB::Val{:N}) where {TA}
+function rres(B::AbstractRowVector, A::AbstractVector)
+    return vrresinf(parent(B), A)
+end
+
+function mul_impl!(C::AbstractMatrix, A::AbstractMatrix, B::AbstractMatrix, tA::Val{R}, tB::Val{:N}) where {R}
     @assert size(C, 2) == size(B, 2)
 
-    if TA == :N
+    if R == :N
         @assert size(C, 1) == size(A, 1)
         @assert size(B, 1) == size(A, 2)
     else
@@ -270,7 +274,7 @@ end
 # Jacobi Algorithm #
 # ---------------- #
 
-function jacobi(A::AbstractMatrix{T}, B::AbstractVecOrMat{T}, side::Val{S}; kw...) where {T, S}
+function jacobi(A::AbstractMatrix{T}, B::AbstractVecOrMat{T}, tA::Val, side::Val{S}; kw...) where {T, S}
     C = Array{T}(undef, size(B))
     D = Array{T}(undef, size(B))
     copyto!(C, B)
@@ -282,12 +286,12 @@ function jacobi(A::AbstractMatrix{T}, B::AbstractVecOrMat{T}, side::Val{S}; kw..
             #
             #   D ← D + A C
             #
-            mul_impl!(D, A, C, Val(:N), Val(:N))
+            mul_impl!(D, A, C, tA, Val(:N))
         else
             #
             #   D ← D + C A
             #
-            mul_impl!(D, C, A, Val(:N), Val(:N))
+            mul_impl!(D, C, A, Val(:N), tA)
         end
 
         if isapprox(C, D; kw...)

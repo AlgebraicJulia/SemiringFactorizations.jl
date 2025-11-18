@@ -18,7 +18,6 @@ WiringDiagrams = "5b9ea594-1203-4fda-bf59-275f9928902e"
 
 [sources]
 TropicalNumbers = {path = "../TropicalNumbers.jl"}
-WiringDiagrams = {path = "../WiringDiagrams.jl"}
 
 [compat]
 AbstractTrees = "0.4"
