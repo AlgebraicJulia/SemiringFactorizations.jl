@@ -28,7 +28,7 @@ AX + B = X
 
 is solved by the matrix $X = A^*B$, where $A^* \in \mathbb{S}^{n \times n}$ is a
 matrix called the *quasi-inverse* of $A$. With SemiringFactorizations.jl, we can solve linear fixed-point
-equations with the functions `sinv(A)`, `sldiv(A, B)`, and `srdiv(B, A)`, which respectively compute
+equations with the functions `star(A)`, `slmul(A, B)`, and `srmul(B, A)`, which respectively compute
 
 - ``A^*``
 - ``A^*B``
@@ -53,7 +53,7 @@ can be reformulated as a linear fixed-point problem
 (I - A)X + B = X.
 ```
 
-This problem can be solved using the function `sldiv`.
+This problem can be solved using the function `slmul`.
 
 ```julia-repl
 julia> using LinearAlgebra, SemiringFactorizations
@@ -76,7 +76,7 @@ julia> b = Float64[
            6 
        ];
 
-julia> sldiv(I - A, b)
+julia> slmul(I - A, b)
 6-element Vector{Float64}:
  -14.0
    1.0
@@ -109,7 +109,7 @@ julia> A = Int[
            0 0 0 0 0 0
        ];
 
-julia> sinv(A)
+julia> star(A)
 6×6 Matrix{Int64}:
  1  1  1  1  2  3
  0  1  0  0  0  1
@@ -144,7 +144,7 @@ julia> A = TropicalMinPlusF64[
            Inf Inf Inf Inf Inf Inf
        ];
 
-julia> sinv(A)
+julia> star(A)
 6×6 Matrix{TropicalMinPlusF64}:
  0.0ₛ  9.0ₛ  1.0ₛ  3.0ₛ  6.0ₛ  11.0ₛ
  Infₛ  0.0ₛ  Infₛ  Infₛ  Infₛ   4.0ₛ
@@ -154,7 +154,7 @@ julia> sinv(A)
  Infₛ  Infₛ  Infₛ  Infₛ  Infₛ   0.0ₛ
 ```
 
-### Finite Automaton
+### Finite Automata
 
 A finite automaton is a graph with a string assigned
 to each edge. Finite automata can be represented
@@ -171,22 +171,20 @@ the automaton from one to the other.
 julia> using SemiringFactorizations
 
 julia> A = RE[
-           "a^" "a"  "a"  "a^" "a^" "a^"
-           "a^" "a^" "a^" "a^" "a^" "c"
-           "a^" "a^" "a^" "c"  "b"  "a^"
-           "a^" "a^" "a^" "a^" "b"  "a^"
-           "a^" "a^" "a^" "a^" "a^" "a"
-           "a^" "a^" "a^" "a^" "a^" "a^"
+           '∅' 'a' 'a' '∅' '∅' '∅'
+           '∅' '∅' '∅' '∅' '∅' 'c'
+           '∅' '∅' '∅' 'c' 'b' '∅'
+           '∅' '∅' '∅' '∅' 'b' '∅'
+           '∅' '∅' '∅' '∅' '∅' 'a'
+           '∅' '∅' '∅' '∅' '∅' '∅'
        ];
 
-julia> sinv(A)
+julia> star(A)
 6×6 Matrix{RE}:
-     a   a   ac  ab|acb  ac|(?:ab|acb)a
- a^      a^  a^  a^      c
- a^  a^      c   b|cb    (?:b|cb)a
- a^  a^  a^      b       ba
- a^  a^  a^  a^          a
- a^  a^  a^  a^  a^      
+ ε  a  a  ac  (acb)|(ab)  (((acb)|(ab))a)|(ac)
+ ∅  ε  ∅  ∅   ∅           c
+ ∅  ∅  ε  c   (cb)|b      ((cb)|b)a
+ ∅  ∅  ∅  ε   b           ba
+ ∅  ∅  ∅  ∅   ε           a
+ ∅  ∅  ∅  ∅   ∅           ε
 ```
-
-Note that regular expression `a^` matches nothing,
