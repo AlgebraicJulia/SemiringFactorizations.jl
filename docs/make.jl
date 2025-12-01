@@ -1,12 +1,16 @@
 using SemiringFactorizations
 using Documenter
 
+using Literate
+Literate.markdown("src/examples_lit.jl", "src")
+
+
 makedocs(;
     modules = [SemiringFactorizations],
     format = Documenter.HTML(),
     sitename = "SemiringFactorizations.jl",
     checkdocs = :none,
-    pages = ["SemiringFactorizations.jl" => "index.md", "Library Reference" => "api.md"],
+    pages = ["SemiringFactorizations.jl" => "index.md", "Library Reference" => "api.md", "Examples" => "examples_lit.md"],
 )
 
 deploydocs(;
