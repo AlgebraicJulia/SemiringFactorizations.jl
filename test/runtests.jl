@@ -1,11 +1,10 @@
 using Graphs
 using LinearAlgebra
 using MatrixMarket
-using SemiringFactorizations
+using SemiringFactorizations, SemiringFactorizations.TropicalNumbers
 using SparseArrays
 using SuiteSparseMatrixCollection
 using Test
-using TropicalNumbers
 
 function readmatrix(name::String)
     ssmc = ssmc_db()
@@ -20,6 +19,7 @@ end
 @testset "(ℝ ∪ {+∞}, +, ×, 0, 1)" begin
     for name in ("swang1", "wang1", "wang3", "ex1", "ex10", "ex10hs")
         A = readmatrix(name)
+        F = slu(A)
 
         m = 10
         n = size(A, 1)
@@ -27,14 +27,14 @@ end
         B = rand(n, m)
         b = rand(n)
 
-        @test sldiv!(A, copy(B)) ≈ (I - A) \ B
-        @test sldiv!(A, copy(b)) ≈ (I - A) \ b
+        @test slmul(F, B) ≈ (I - A) \ B
+        @test slmul(F, b) ≈ (I - A) \ b
 
         C = B |> transpose
         c = b |> transpose
 
-        @test srdiv(C, A) ≈ C / (I - A)
-        @test srdiv(b, A) |> transpose ≈ c / (I - A)
+        @test srmul(C, F) ≈ C / (I - A)
+        @test srmul(c, F) ≈ c / (I - A)
     end
 end
 
@@ -46,7 +46,7 @@ end
         5.0 Inf Inf Inf
     ]
 
-    @test sinv(A) == TropicalMinPlusF64[
+    @test star(A) == TropicalMinPlusF64[
          0.0  9.0  8.0 15.0
         18.0  0.0  6.0 13.0
         12.0 21.0  0.0  7.0
@@ -59,7 +59,7 @@ end
         Inf 2.0 Inf
     ]
 
-    @test sinv(A) == TropicalMinPlusF64[
+    @test star(A) == TropicalMinPlusF64[
         0.0 3.0 1.0
         4.0 0.0 5.0
         6.0 2.0 0.0     
@@ -78,7 +78,7 @@ end
 
         g = DiGraph(A)
 
-        D1 = sinv(B)
+        D1 = star(B)
         D2 = floyd_warshall_shortest_paths(g, A).dists
 
         for j in size(A, 2), i in size(A, 1)
@@ -103,7 +103,7 @@ end
         0.0 1.0 0.0
     ]
 
-    @test sinv(A) == TropicalMaxMulF64[
+    @test star(A) == TropicalMaxMulF64[
         1.0 0.6 0.54
         0.0 1.0 0.9
         0.0 1.0 1.0     
@@ -112,15 +112,15 @@ end
 
 @testset "Regular expressions" begin
     A = RE[
-        "a^" "a"  "a"  "a^" "a^" "a^"
-        "a^" "a^" "a^" "a^" "a^" "c"
-        "a^" "a^" "a^" "c"  "b"  "a^"
-        "a^" "a^" "a^" "a^" "b"  "a^" 
-        "a^" "a^" "a^" "a^" "a^" "a"
-        "a^" "a^" "a^" "a^" "a^" "a^"
+       '∅' 'a' 'a' '∅' '∅' '∅'
+       '∅' '∅' '∅' '∅' '∅' 'c'
+       '∅' '∅' '∅' 'c' 'b' '∅'
+       '∅' '∅' '∅' '∅' 'b' '∅'
+       '∅' '∅' '∅' '∅' '∅' 'a'
+       '∅' '∅' '∅' '∅' '∅' '∅'
     ]
 
-    B = sinv(A)
+    B = star(A)
 
     r = B[1, 6] |> Regex
 
