@@ -15,6 +15,10 @@ using TropicalNumbers
 #
 # For this example we have 8 tasks. Task 1 starts at time = 0 since it has no predecessors, Task 2 starts at time = 1 (its release time),
 # Task 3 starts at time = 4 (after Task 1 finishes at time = 3 + 1 lag, Task 2 finishes at time = 1 + 2), and so on.
+# 
+# This scenario is graphed below
+#
+# ![Task graph](assets/example.svg)
 #
 # We first set duration values for each task. For example we have set task 3 to take 4 units of time.
 
