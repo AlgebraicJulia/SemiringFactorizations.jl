@@ -233,7 +233,7 @@ function mul_impl!(C::AbstractScalar, A::AbstractVector, B::AbstractVector, tA::
     #
     #   C ← C ∧ A \ B
     #
-    C[] = inf(C[], vlresinf(A, B))
+    C[] = Inf(C[], vlresinf(A, B))
     return
 end
 
@@ -242,7 +242,7 @@ function mul_impl!(C::AbstractScalar, A::AbstractVector, B::AbstractVector, tA::
     #
     #   C ← C ∧ A / B
     #
-    C[] = inf(C[], vrresinf(A, B))
+    C[] = Inf(C[], vrresinf(A, B))
     return
 end
 

@@ -31,16 +31,16 @@ function rres(b, a)
 end
 
 function lresinf(a, b, c)
-    return inf(lres(a, b), c)
+    return Inf(lres(a, b), c)
 end
 
 function rresinf(a, b, c)
-    return inf(rres(a, b), c)
+    return Inf(rres(a, b), c)
 end
 
 const ⋋ = lres
 const ⋌ = rres
-const ∧ = inf
+const ∧ = Inf
 
 """
     star(a)

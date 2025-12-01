@@ -92,22 +92,35 @@ total cost 3(1) + 1(1->3) + 4(3) + 1(3->5) + 5(5) + 2(5->6) + 2(6) + 1(6->7) + 6
 It is worth noting that this vector gives us the maximum cost to complete any task given the starting tasks so in cases where
 the tasks are not semi sequential we would still get the highest cost for completion.
 
+Max-plus matrix A
+
+````@example examples_lit
+A
+````
+
+Quasi-inverse A*
+
+````@example examples_lit
+Astar
+````
+
+Earliest start times x
+
+````@example examples_lit
+x
+````
+
+Finish times y = x + d
+
+````@example examples_lit
+y
+````
+
+Completion time
+
 ````@example examples_lit
 Cmax = maximum([yi.n for yi in y])
-
-println("Max-plus matrix A")
-display(A)
-
-println("\nQuasi-inverse A*")
-display(Astar)
-
-println("\nEarliest start times x")
-display(x)
-
-println("\nFinish times y = x + d")
-display(y)
-
-println("\n Completion time Cmax = ", Cmax)
+println("Cmax = ", Cmax)
 ````
 
 ## Now Min cost
@@ -184,22 +197,35 @@ In this case the true solution is the path 1 -> 6 -> 7 -> 8, total cost 3(1) + 2
 It is worth noting that this vector gives us the minimum cost to complete any task given the starting tasks so in cases where
 the tasks are not semi sequential we would still get the least cost for completion.
 
+Min-plus matrix A
+
+````@example examples_lit
+A
+````
+
+Quasi-inverse A*
+
+````@example examples_lit
+Astar
+````
+
+Minimum cumulative costs x"
+
+````@example examples_lit
+x
+````
+
+Finish costs y = x + d
+
+````@example examples_lit
+y
+````
+
+Minimum Cost
+
 ````@example examples_lit
 Cmin = maximum([yi.n for yi in y])
-
-println("Min-plus matrix A")
-display(A)
-
-println("\nQuasi-inverse A*")
-display(Astar)
-
-println("\nMinimum cumulative costs x")
-display(x)
-
-println("\nFinish costs y = x + d")
-display(y)
-
-println("\nMinimum total cost Cmin = ", Cmin)
+println("Minimum total cost Cmin = ", Cmin)
 ````
 
 ---

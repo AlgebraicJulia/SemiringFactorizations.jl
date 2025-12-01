@@ -76,14 +76,14 @@ function Base.string(a::RE)
                 end
 
                 str = sl * "|" * sr
-            elseif a.head == :inf
-                if l.head in (:char, :zero, :one, :top, :star, :inf)
+            elseif a.head == :Inf
+                if l.head in (:char, :zero, :one, :top, :star, :Inf)
                     sl = string(l)
                 else
                     sl = "(" * string(l) * ")"
                 end
 
-                if r.head in (:char, :zero, :one, :top, :star, :inf)
+                if r.head in (:char, :zero, :one, :top, :star, :Inf)
                     sr = string(r)
                 else
                     sr = "(" * string(r) * ")"
@@ -135,7 +135,7 @@ function Base.:+(a::RE, b::RE)
     return c
 end
 
-function TropicalNumbers.inf(a::RE, b::RE)
+function TropicalNumbers.Inf(a::RE, b::RE)
     if a.head == :zero || b.head == :zero
         c = zero(RE)
     elseif a.head == :one || b.head == :one
@@ -145,7 +145,7 @@ function TropicalNumbers.inf(a::RE, b::RE)
     elseif b.head == :top || a.head == b.head == :char && a.char == b.char
         c = a
     else
-        c = RE(:inf, a.flag && b.flag, a, b)
+        c = RE(:Inf, a.flag && b.flag, a, b)
     end
 
     return c
@@ -188,7 +188,7 @@ function lres(a::RE, b::RE)
 
             if a.head == :add
                 c = lres(l, b) ∧ lres(r, b)
-            elseif a.head == :inf
+            elseif a.head == :Inf
                 c = lres(l, b) + lres(r, b)
             elseif a.head == :mul
                 c = lres(r, lres(l, b))
@@ -218,7 +218,7 @@ function lres(a::Char, b::RE)
 
             if b.head == :add
                 c = lres(a, l) + lres(a, r)
-            elseif b.head == :inf
+            elseif b.head == :Inf
                 c = lres(a, l) ∧ lres(a, r)
             elseif b.head == :mul
                 if l.flag
@@ -256,7 +256,7 @@ function rres(b::RE, a::RE)
 
             if a.head == :add
                 c = rres(b, l) ∧ rres(b, r)
-            elseif a.head == :inf
+            elseif a.head == :Inf
                 c = rres(b, l) + rres(b, r)
             elseif a.head == :mul
                 c = rres(rres(b, r), l)
@@ -286,7 +286,7 @@ function rres(b::RE, a::Char)
 
             if b.head == :add
                 c = rres(l, a) + rres(r, a)
-            elseif b.head == :inf
+            elseif b.head == :Inf
                 c = rres(l, a) ∧ rres(r, a)
             elseif b.head == :mul
                 if r.flag

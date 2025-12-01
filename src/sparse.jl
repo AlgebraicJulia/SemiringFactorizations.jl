@@ -1013,7 +1013,7 @@ function sp_smul_fwd_update!(
             if R == :N
                 F[inj[v]] += C[v]
             else
-                F[inj[v]] = inf(F[inj[v]], C[v])
+                F[inj[v]] = Inf(F[inj[v]], C[v])
             end
         end
     elseif S == :L
@@ -1021,7 +1021,7 @@ function sp_smul_fwd_update!(
             if R == :N
                 F[inj[v], w] += C[v, w]
             else
-                F[inj[v], w] = inf(F[inj[v], w], C[v, w])
+                F[inj[v], w] = Inf(F[inj[v], w], C[v, w])
             end
         end
     else
@@ -1032,7 +1032,7 @@ function sp_smul_fwd_update!(
                 if R == :N
                     F[w, iv] += C[w, v]
                 else
-                    F[w, iv] = inf(F[w, iv], C[w, v])
+                    F[w, iv] = Inf(F[w, iv], C[w, v])
                 end
             end
         end

@@ -2,7 +2,7 @@ using SemiringFactorizations
 using Documenter
 
 using Literate
-Literate.markdown("src/examples_lit.jl", "src")
+Literate.markdown("docs/src/examples_lit.jl", "docs/src")
 
 
 makedocs(;
