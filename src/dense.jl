@@ -27,10 +27,23 @@ function Base.size(F::StarLU)
     return size(F.factors)
 end
 
-# --- #
-# slu #
-# --- #
+function Semirings.inf(A::AbstractMatrix, B::AbstractMatrix)
+    return A .∧ B
+end
 
+# -------------------- #
+# Matrix Factorization #
+# -------------------- #
+
+function slu(A::AbstractMatrix)
+    return slu!(FMatrix(A))
+end
+
+"""
+    slu!(A::AbstractMatrix)
+
+Construct the Kleene star A*.
+"""
 function slu!(A::AbstractMatrix)
     slu_impl!(A)
     return StarLU(A)
@@ -105,10 +118,25 @@ function slu_impl!(A::AbstractMatrix{T}, blocksize::Int = DEFAULT_BLOCK_SIZE) wh
     return
 end
 
-# ------ #
-# slmul! #
-# srmul! #
-# ------ #
+# ---------------- #
+# Triangular Solve #
+# ---------------- #
+
+function lmul!(A::StarLU, B::AbstractVecOrMat)
+    return slmul!(A.U, slmul!(A.L, B))
+end
+
+function rmul!(B::AbstractMatrix, A::StarLU)
+    return srmul!(srmul!(B, A.U), A.L)
+end
+
+function ldiv!(A::StarLU, B::AbstractVecOrMat)
+    return sldiv!(A.L, sldiv!(A.U, B))
+end
+
+function rdiv!(B::AbstractMatrix, A::StarLU)
+    return srdiv!(srdiv!(B, A.L), A.U)
+end
 
 function slmul!(A::Number, B::AbstractRowVector)
     smul_impl!(A, parent(B), Val(:N), Val(:U), Val(:L))
@@ -123,10 +151,6 @@ end
 function slmul!(A::UpperTriangular, B::AbstractVecOrMat)
     smul_impl!(parent(A), B, Val(:N), Val(:U), Val(:L))
     return B
-end
-
-function slmul!(A::StarLU, B::AbstractVecOrMat)
-    return slmul!(A.U, slmul!(A.L, B))
 end
 
 function srmul!(B::AbstractVector, A::Number)
@@ -154,44 +178,32 @@ function srmul!(B::AbstractRowVector, A::UpperTriangular)
     return B
 end
 
-function srmul!(B::AbstractMatrix, A::StarLU)
-    return srmul!(srmul!(B, A.U), A.L)
-end
-
-function slres!(A::StarLU, B::AbstractVecOrMat)
-    return slres!(A.L, slres!(A.U, B))
-end
-
-function slres!(A::StrictLowerTriangular, B::AbstractVecOrMat)
+function sldiv!(A::StrictLowerTriangular, B::AbstractVecOrMat)
     smul_impl!(parent(A), B, Val(:C), Val(:L), Val(:L))
     return B
 end
 
-function slres!(A::UpperTriangular, B::AbstractVecOrMat)
+function sldiv!(A::UpperTriangular, B::AbstractVecOrMat)
     smul_impl!(parent(A), B, Val(:C), Val(:U), Val(:L))
     return B
 end
 
-function srres!(B::AbstractMatrix, A::StarLU)
-    return srres!(srres!(B, A.L), A.U)
-end
-
-function srres!(B::AbstractMatrix, A::StrictLowerTriangular)
+function srdiv!(B::AbstractMatrix, A::StrictLowerTriangular)
     smul_impl!(parent(A), B, Val(:C), Val(:L), Val(:R))
     return B
 end
 
-function srres!(B::AbstractRowVector, A::StrictLowerTriangular)
+function srdiv!(B::AbstractRowVector, A::StrictLowerTriangular)
     smul_impl!(parent(A), parent(B), Val(:C), Val(:L), Val(:R))
     return B
 end
 
-function srres!(B::AbstractMatrix, A::UpperTriangular)
+function srdiv!(B::AbstractMatrix, A::UpperTriangular)
     smul_impl!(parent(A), B, Val(:C), Val(:U), Val(:R))
     return B
 end
 
-function srres!(B::AbstractRowVector, A::UpperTriangular)
+function srdiv!(B::AbstractRowVector, A::UpperTriangular)
     smul_impl!(parent(A), parent(B), Val(:C), Val(:U), Val(:R))
     return B
 end
@@ -265,7 +277,7 @@ function smul_impl2!(A::T, B::AbstractScalar{T}, tA::Val{:C}, uplo::Val{:U}, sid
     #
     #   B ← A* \ B
     #
-    B[] = slres(A, B[])
+    B[] = sldiv(A, B[])
     return
 end
 
@@ -418,7 +430,7 @@ function smul_impl2!(A::T, B::AbstractScalar{T}, tA::Val{:C}, uplo::Val{:U}, sid
     #
     #   B ← B / A*
     #
-    B[] = srres(B[], A)
+    B[] = srdiv(B[], A)
     return
 end
 
@@ -428,7 +440,7 @@ function smul_impl2!(A::T, B::AbstractVector{T}, tA::Val{:C}, uplo::Val{:U}, sid
     #   B ← B / A*
     #
     @inbounds @simd for i in 1:n
-        B[i] = srres(B[i], A)
+        B[i] = srdiv(B[i], A)
     end
 
     return
@@ -845,11 +857,9 @@ function smul_impl!(A::AbstractMatrix{T}, B::AbstractVecOrMat{T}, tA::Val{:N}, u
     return
 end
 
-# ---- #
-# mul  #
-# lres #
-# rres #
-# ---- #
+# --------------------- #
+# Matrix Multiplication #
+# --------------------- #
 
 function mul_impl!(C::AbstractVector, A::AbstractMatrix, B::AbstractVector, tA::Val{:N}, tB::Val)
     @assert length(C) == size(A, 1)
@@ -933,57 +943,51 @@ function mul_impl!(C::AbstractVector{T}, A::AbstractVector{T}, B::T, tA::Val, tB
     return
 end
 
-function mul_impl!(C::StridedMatrix{T}, A::StridedMatrix{T}, B::StridedMatrix{T}, tA::Val{:N}, tB::Val{:N}) where {T <: Number}
-    matmul!(C, A, B, one(T), one(T))
+function mul_impl!(C::StridedMatrix{T}, A::StridedMatrix{T}, B::StridedMatrix{T}, tA::Val{:N}, tB::Val{:N}) where {T <: NativeTypes}
+    matmul!(C, A, B, StaticInt{1}(), StaticInt{1}())
     return
 end
 
-function vmuladd(A::AbstractVector{T}, B::AbstractVector{T}) where {T}
+function Semirings.fma(A::AbstractVector{T}, B::AbstractVector{T}, C::T) where {T}
     @assert length(A) == length(B)
     #
-    #   C ← A B
+    #   C ← C + A B
     #
-    C = zero(T)
-
     @inbounds @simd for i in eachindex(A)
         #
         #   C ← C + Ai Bi
         #
-        C = muladd(A[i], B[i], C)
+        C = fma(A[i], B[i], C)
     end
 
     return C
 end
 
-function vlresinf(A::AbstractVector{T}, B::AbstractVector{T}) where {T}
+function Semirings.fli(A::AbstractVector{T}, B::AbstractVector{T}, C::T) where {T}
     @assert length(A) == length(B)
     #
-    #   C ← A \ B
+    #   C ← C ∧ A \ B
     #
-    C = typemax(T)
-
     @inbounds @simd for i in eachindex(A)
         #
         #   C ← C ∧ Ai \ Bi
         #
-        C = lresinf(A[i], B[i], C)
+        C = fli(A[i], B[i], C)
     end
 
     return C
 end
 
-function vrresinf(A::AbstractVector{T}, B::AbstractVector{T}) where {T}
+function Semirings.fri(A::AbstractVector{T}, B::AbstractVector{T}, C::T) where {T}
     @assert length(A) == length(B)
     #
-    #   C ← A / B
+    #   C ← C ∧ A / B
     #
-    C = typemax(T)
-
     @inbounds @simd for i in eachindex(A)
         #
         #   C ← C ∧ Ai / Bi
         #
-        C = rresinf(A[i], B[i], C)
+        C = fri(A[i], B[i], C)
     end
 
     return C

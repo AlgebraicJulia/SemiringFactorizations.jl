@@ -91,43 +91,32 @@ function slu(matrix::SparseMatrixCSC{T, I}, symb::SymbolicStarLU{I}) where {T, I
     return SparseStarLU(symb, Rptr, Rval, Lptr, Lval, Uval)    
 end
 
-"""
-    mtstar(A::SparseStarLU)
-
-A multi-threaded version of [`star`](@ref).
-"""
-function mtstar(A::SparseStarLU{T}) where {T}
-    B = zeros(T, size(A))
-    fill!(view(B, diagind(B)), one(T))
-    return mtslmul!(A, B)
-end
-
-function slmul!(A::SparseStarLU, B::AbstractVecOrMat)
+function lmul!(A::SparseStarLU, B::AbstractVecOrMat)
     sp_smul_impl!(A, B, Val(:N), Val(:L))
     return B
 end
 
-function srmul!(B::AbstractMatrix, A::SparseStarLU)
+function rmul!(B::AbstractMatrix, A::SparseStarLU)
     sp_smul_impl!(A, B, Val(:N), Val(:R))
     return B
 end
 
-function srmul!(B::AbstractRowVector, A::SparseStarLU)
+function rmul!(B::AbstractRowVector, A::SparseStarLU)
     sp_smul_impl!(A, parent(B), Val(:N), Val(:R))
     return B
 end
 
-function slres!(A::SparseStarLU, B::AbstractVecOrMat)
+function ldiv!(A::SparseStarLU, B::AbstractVecOrMat)
     sp_smul_impl!(A, B, Val(:C), Val(:L))
     return B
 end
 
-function srres!(B::AbstractMatrix, A::SparseStarLU)
+function rdiv!(B::AbstractMatrix, A::SparseStarLU)
     sp_smul_impl!(A, B, Val(:C), Val(:R))
     return B
 end
 
-function srres!(B::AbstractRowVector, A::SparseStarLU)
+function rdiv!(B::AbstractRowVector, A::SparseStarLU)
     sp_smul_impl!(A, parent(B), Val(:C), Val(:R))
     return B
 end
@@ -194,31 +183,41 @@ function sp_smul_impl!(A::SparseStarLU{T, I}, B::AbstractVecOrMat, tA::Val, side
 end
 
 """
-    mtslmul!(A::SparseStarLU, B::AbstractMatrix)
+    mtlmul!(A::SparseStarLU, B::AbstractMatrix)
 
-A multi-threaded version of [`slmul!`](@ref).
+A multi-threaded version of [`lmul!`](@ref).
 """
-function mtslmul!(A::SparseStarLU, B::AbstractMatrix)
+function mtlmul!(A::SparseStarLU, B::AbstractMatrix)
     sp_mtsmul_impl!(A, B, Val(:N), Val(:L))
     return B
 end
 
 """
-    mtsrmul!(B::AbstractMatrix, A::SparseStarLU)
+    mtrmul!(B::AbstractMatrix, A::SparseStarLU)
 
-A multi-threaded version of [`srmul!`](@ref).
+A multi-threaded version of [`rmul!`](@ref).
 """
-function mtsrmul!(B::AbstractMatrix, A::SparseStarLU)
+function mtrmul!(B::AbstractMatrix, A::SparseStarLU)
     sp_mtsmul_impl!(A, B, Val(:N), Val(:R))
     return B
 end
 
-function mtslres!(A::SparseStarLU, B::AbstractMatrix)
+"""
+    mtldiv!(A::SparseStarLU, B::AbstractMatrix)
+
+A multi-threaded version of [`ldiv!`](@ref).
+"""
+function mtldiv!(A::SparseStarLU, B::AbstractMatrix)
     sp_mtsmul_impl!(A, B, Val(:C), Val(:L))
     return B
 end
 
-function mtsrres!(B::AbstractMatrix, A::SparseStarLU)
+"""
+    mtrdiv!(B::AbstractMatrix, A::SparseStarLU)
+
+A multi-threaded version of [`rdiv!`](@ref).
+"""
+function mtrdiv!(B::AbstractMatrix, A::SparseStarLU)
     sp_mtsmul_impl!(A, B, Val(:C), Val(:R))
     return B
 end
@@ -1109,9 +1108,9 @@ function sp_smul_bwd_update!(
     return
 end
 
-# --- #
-# mul #
-# --- #
+# --------------------- #
+# Matrix Multiplication #
+# --------------------- #
 
 function mul_impl!(C::AbstractVector, A::AbstractMatrix, B::SparseColumnCSC, tA::Val{:N}, tB::Val)
     @assert length(C) == size(A, 1)
@@ -1155,7 +1154,7 @@ function mul_impl!(C::AbstractMatrix, A::AbstractVector, B::SparseColumnCSC, tA:
     return
 end
 
-function mul_impl!(C::AbstractVector{T}, A::T, B::SparseColumnCSC{T}, tA::Val, tB::Val) where {T}
+function mul_impl!(C::AbstractVector{T}, A::T, B::SparseColumnCSC{T}, tA::Val{:N}, tB::Val) where {T}
     @assert length(C) == length(B)
     #
     #   B = Dj
@@ -1167,7 +1166,7 @@ function mul_impl!(C::AbstractVector{T}, A::T, B::SparseColumnCSC{T}, tA::Val, t
     @inbounds for p in nzrange(D, j)
         Ci = @view C[rowvals(D)[p]]
         #
-        #   Ci ← Ai B
+        #   Ci ← Ci + Ai B
         #
         mul_impl!(Ci, A, nonzeros(D)[p], tA, tB)
     end
@@ -1175,7 +1174,7 @@ function mul_impl!(C::AbstractVector{T}, A::T, B::SparseColumnCSC{T}, tA::Val, t
     return
 end
 
-function mul_impl!(C::AbstractVector{T}, A::SparseColumnCSC{T}, B::T, tA::Val, tB::Val) where {T}
+function mul_impl!(C::AbstractVector{T}, A::SparseColumnCSC{T}, B::T, tA::Val, tB::Val{:N}) where {T}
     @assert length(C) == length(A)
     #
     #   A = Dj
@@ -1187,7 +1186,7 @@ function mul_impl!(C::AbstractVector{T}, A::SparseColumnCSC{T}, B::T, tA::Val, t
     @inbounds for p in nzrange(D, j)
         Ci = @view C[rowvals(D)[p]]
         #
-        #   Ci ← Ai B
+        #   Ci ← Ci + Ai B
         #
         mul_impl!(Ci, nonzeros(D)[p], B, tA, tB)
     end
@@ -1195,134 +1194,132 @@ function mul_impl!(C::AbstractVector{T}, A::SparseColumnCSC{T}, B::T, tA::Val, t
     return
 end
 
-function vmuladd(A::SparseColumnCSC{T}, B::AbstractVector{T}) where {T}
+function Semirings.fma(A::SparseColumnCSC{T}, B::AbstractVector{T}, C::T) where {T}
     @assert length(A) == length(B)
     #
     #   A = Dj
     #
     D, j = unpack(A)
     #
-    #   C ← A B
+    #   C ← C + A B
     #
-    C = zero(T)
-
     @inbounds for p in nzrange(D, j)
         Bi = B[rowvals(D)[p]]
         #
         #   C ← C + Ai Bi
         #
-        C = muladd(nonzeros(D)[p], Bi, C)
+        C = fma(nonzeros(D)[p], Bi, C)
     end
 
     return C
 end
 
-function vmuladd(A::AbstractVector{T}, B::SparseColumnCSC{T}) where {T}
+function Semirings.fma(A::AbstractVector{T}, B::SparseColumnCSC{T}, C::T) where {T}
     @assert length(A) == length(B)
     #
     #   B = Dj
     #
     D, j = unpack(B)
     #
-    #   C ← A B
+    #   C ← C + A B
     #
-    C = zero(T)
-
     @inbounds for p in nzrange(D, j)
         Ai = A[rowvals(D)[p]]
         #
         #   C ← C + Ai Bi
         #
-        C = muladd(Ai, nonzeros(D)[p], C)
+        C = fma(Ai, nonzeros(D)[p], C)
     end
 
     return C
 end
 
-function vlresinf(A::SparseColumnCSC{T}, B::AbstractVector{T}) where {T}
+function Semirings.fli(A::SparseColumnCSC{T}, B::AbstractVector{T}, C::T) where {T}
     @assert length(A) == length(B)
     #
     #   A = Dj
     #
     D, j = unpack(A)
     #
-    #   C ← A \ B
+    #   C ← C ∧ A \ B
     #
-    C = typemax(T)
-
     @inbounds for p in nzrange(D, j)
         Bi = B[rowvals(D)[p]]
         #
         #   C ← C ∧ Ai \ Bi
         #
-        C = lresinf(nonzeros(D)[p], Bi, C)
+        C = fli(nonzeros(D)[p], Bi, C)
     end
 
     return C
 end
 
-function vlresinf(A::AbstractVector{T}, B::SparseColumnCSC{T}) where {T}
+function Semirings.fri(A::AbstractVector{T}, B::SparseColumnCSC{T}, C::T) where {T}
     @assert length(A) == length(B)
     #
     #   B = Dj
     #
     D, j = unpack(B)
     #
-    #   C ← A \ B
+    #   C ← C ∧ A / B
     #
-    C = typemax(T)
-
-    @inbounds for p in nzrange(D, j)
-        Ai = A[rowvals(D)[p]]
-        #
-        #   C ← C ∧ Ai \ Bi
-        #
-        C = lresinf(Ai, nonzeros(D)[p], C)
-    end
-
-    return C
-end
-
-function vrresinf(A::SparseColumnCSC{T}, B::AbstractVector{T}) where {T}
-    @assert length(A) == length(B)
-    #
-    #   A = Dj
-    #
-    D, j = unpack(A)
-    #
-    #   C ← A B
-    #
-    C = typemax(T)
-
-    @inbounds for p in nzrange(D, j)
-        Bi = B[rowvals(D)[p]]
-        #
-        #   C ← C ∧ Ai / Bi
-        #
-        C = rresinf(nonzeros(D)[p], Bi, C)
-    end
-
-    return C
-end
-
-function vrresinf(A::AbstractVector{T}, B::SparseColumnCSC{T}) where {T}
-    @assert length(A) == length(B)
-    #
-    #   B = Dj
-    #
-    D, j = unpack(B)
-    #
-    #   C ← A / B
-    #
-    C = typemax(T)
-
     @inbounds for p in nzrange(D, j)
         Ai = A[rowvals(D)[p]]
         #
         #   C ← C ∧ Ai / Bi
         #
-        C = rresinf(Ai, nonzeros(D)[p], C)
+        C = fri(Ai, nonzeros(D)[p], C)
     end
 
+    return C
+end
+
+# ------- #
+# Infimum #
+# ------- #
+
+function Semirings.inf(A::SparseMatrixCSC{T, I}, B::SparseMatrixCSC{T, I}) where {T, I}
+    @assert size(A) == size(B)
+
+    m, n = size(A)
+    C = spzeros(T, m, n)
+
+    k = min(nnz(A), nnz(B))
+    resize!(rowvals(C), k)
+    resize!(nonzeros(C), k)
+
+    c = zero(I)
+
+    for j in 1:n
+        C.colptr[j] = c + one(I)
+
+        a = A.colptr[j]; astop = A.colptr[j + 1] - 1
+        b = B.colptr[j]; bstop = B.colptr[j + 1] - 1
+
+        while a <= astop && b <= bstop
+            ai = rowvals(A)[a]
+            bi = rowvals(B)[b]
+
+            if ai < bi
+                a += one(I)
+            elseif ai > bi
+                b += one(I)
+            else
+                ax = nonzeros(A)[a]
+                bx = nonzeros(B)[b]
+
+                a += one(I)
+                b += one(I)
+                c += one(I)
+
+                rowvals(C)[c] = ai
+                nonzeros(C)[c] = ax ∧ bx
+            end
+        end
+    end
+
+    C.colptr[n + 1] = c + one(I)
+    resize!(rowvals(C), c)
+    resize!(nonzeros(C), c)
     return C
 end

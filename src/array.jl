@@ -1,151 +1,198 @@
+"""
+    AbstractStarLU{T}
+
+An `AbstractStarLU` object represents
+the Kleene star A* of an n x n matrix A
+as a pair (L, U), where
+
+  - L is an n x n strictly lower triangular matrix
+  - U is an n x n upper triangular matrix
+
+and A* = U*L*.
+"""
 abstract type AbstractStarLU{T} end
+
+function Base.Matrix(A::AbstractStarLU{T}) where {T}
+    B = zeros(T, size(A))
+    fill!(view(B, diagind(B)), one(T))
+    return rmul!(B, A)
+end
 
 """
     slu(A::AbstractMatrix)
 
-Compute an LU factorization of the Kleene star A*.
-A factorization object F can be used to quickly compute
-
-- star(F)
-- slmul(F, B)
-- srmul(B, F)
-- slres(F, B)
-- srres(B, F)
+Compute the Kleene star A*.
+"""
+slu(A::AbstractMatrix)
 
 """
-function slu(A::AbstractMatrix)
-    return slu!(FMatrix(A))
+    lmul!(A::AbstractStarLU, B::AbstractVecOrMat)
+
+Compute the product AB, storing the result in B.
+"""
+lmul!(A::AbstractStarLU, B::AbstractVecOrMat)
+
+"""
+    lmul!(B::AbstractMatrix, A::AbstractStarLU)
+
+Compute the product BA, storing the result in B.
+"""
+rmul!(B::AbstractMatrix, A::AbstractStarLU)
+
+"""
+    slmul!(A::AbstractMatrix, B::AbstractVecOrMat)
+
+Compute the product A*B, storing the result in B.
+"""
+function slmul!(A::AbstractMatrix, B::AbstractVecOrMat)
+    return lmul!(slu(A), B)
 end
 
-function star(A::AbstractMatrix)
-    return star(slu(A))
+"""
+    srmul!(B::AbstractMatrix, A::AbstractMatrix)
+
+Compute the product BA*, storing the result in B.
+"""
+function srmul!(B::AbstractMatrix, A::AbstractMatrix)
+    return rmul!(B, slu(A))
 end
 
-function star(A::AbstractStarLU{T}) where {T}
-    B = zeros(T, size(A))
-    fill!(view(B, diagind(B)), one(T))
-    return srmul!(B, A)
+"""
+    sldiv!(A::AbstractMatrix, B::AbstractVecOrMat)
+
+Compute the residuum A* \\ B, storing the result in B.
+"""
+function sldiv!(A::AbstractMatrix, B::AbstractVecOrMat)
+    return ldiv!(slu(A), B)
 end
 
-function slmul(A::AbstractStarLU, B::AbstractVecOrMat)
-    return slmul!(A, Array(B))
+"""
+    srdiv!(B::AbstractMatrix, A::AbstractMatrix)
+
+Compute the residuum B / A*, storing the result in B.
+"""
+function srdiv!(B::AbstractMatrix, A::AbstractMatrix)
+    return rdiv!(B, slu(A))
 end
 
-function slmul(A::AbstractMatrix, B::AbstractVecOrMat)
-    return jacobi(A, B, Val(:N), Val(:L))
-end
+"""
+    fma!(A::AbstractMatrix, B::AbstractVecOrMat, C::AbstractVecOrMat)
 
-function srmul(B::AbstractMatrix, A::AbstractStarLU)
-    return srmul!(Matrix(B), A)
-end
-
-function srmul(B::AbstractRowVector, A::AbstractStarLU)
-    return srmul!(Vector(parent(B)) |> transpose, A)
-end
-
-function srmul(B::AbstractMatrix, A::AbstractMatrix)
-    return jacobi(A, B, Val(:N), Val(:R))
-end
-
-function srmul(B::AbstractRowVector, A::AbstractMatrix)
-    return jacobi(A, parent(B), Val(:N), Val(:R)) |> transpose
-end
-
-function slres(A::AbstractStarLU, B::AbstractVecOrMat)
-    return slres!(A, Array(B))
-end
-
-function slres(A::AbstractMatrix, B::AbstractVecOrMat)
-    return jacobi(A, B, Val(:C), Val(:L))
-end
-
-function srres(B::AbstractMatrix, A::AbstractStarLU)
-    return srres!(Matrix(B), A)
-end
-
-function srres(B::AbstractRowVector, A::AbstractStarLU)
-    return srres!(Vector(parent(B)) |> transpose, A)
-end
-
-function srres(B::AbstractMatrix, A::AbstractMatrix)
-    return jacobi(A, B, Val(:C), Val(:R))
-end
-
-function srres(B::AbstractRowVector, A::AbstractMatrix)
-    return jacobi(A, parent(B), Val(:C), Val(:R)) |> transpose
-end
-
-function Base.:*(A::AbstractStarLU, B::AbstractVecOrMat)
-    return slmul(A, B)
-end
-
-function Base.:*(B::AbstractVecOrMat, A::AbstractStarLU)
-    return srmul(B, A)
-end
-
-function mul(A::AbstractStarLU, B::AbstractVecOrMat)
-    return slmul(A, B)
-end
-
-function mul(B::AbstractVecOrMat, A::AbstractStarLU)
-    return srmul(B, A)
-end
-
-function mul(A::AbstractMatrix{T}, B::AbstractMatrix{T}) where {T}
-    C = fill(zero(T), size(A, 1), size(B, 2))
+Compute the sum AB + C, storing the result in C.
+"""
+function fma!(A::AbstractMatrix, B::AbstractVecOrMat, C::AbstractVecOrMat)
     mul_impl!(C, A, B, Val(:N), Val(:N))
     return C
 end
 
-function mul(A::AbstractMatrix{T}, B::AbstractVector{T}) where {T}
-    C = fill(zero(T), size(A, 1))
-    mul_impl!(C, A, B, Val(:N), Val(:N))
-    return C
-end
+"""
+    fli!(A::AbstractMatrix, B::AbstractVecOrMat, C::AbstractVecOrMat)
 
-function mul(A::AbstractRowVector, B::AbstractVector)
-    return vmuladd(parent(A), B)
-end
-
-function lres(A::AbstractStarLU, B::AbstractVecOrMat)
-    return slres(A, B)
-end
-
-function lres(A::AbstractMatrix{T}, B::AbstractMatrix{T}) where {T}
-    C = fill(typemax(T), size(A, 2), size(B, 2))
+Compute the infimum A \\ B ∧ C, storing the result in C.
+"""
+function fli!(A::AbstractMatrix, B::AbstractVecOrMat, C::AbstractVecOrMat)
     mul_impl!(C, A, B, Val(:C), Val(:N))
     return C
 end
 
-function lres(A::AbstractMatrix{T}, B::AbstractVector{T}) where {T}
-    C = fill(typemax(T), size(A, 2))
-    mul_impl!(C, A, B, Val(:C), Val(:N))
-    return C
-end
+"""
+    fri!(B::AbstractMatrix, A::AbstractMatrix, C::AbstractMatrix)
 
-function lres(A::AbstractRowVector, B::AbstractVector)
-    return vlresinf(parent(A), B)
-end
-
-function rres(B::AbstractMatrix, A::AbstractStarLU)
-    return srres(B, A)
-end
-
-function rres(B::AbstractMatrix{T}, A::AbstractMatrix{T}) where {T}
-    C = fill(typemax(T), size(B, 1), size(A, 1))
+Compute the infimum B / A ∧ C, storing the result in C.
+"""
+function fri!(B::AbstractMatrix, A::AbstractMatrix, C::AbstractMatrix)
     mul_impl!(C, B, A, Val(:N), Val(:C))
     return C
 end
 
-function rres(B::AbstractRowVector{T}, A::AbstractMatrix{T}) where {T}
-    C = fill(typemax(T), size(A, 1))
-    mul_impl!(C, parent(B), A, Val(:N), Val(:C))
-    return transpose(C)
+function fri!(B::AbstractRowVector, A::AbstractMatrix, C::AbstractRowVector)
+    mul_impl!(parent(C), parent(B), A, Val(:N), Val(:C))
+    return C
 end
 
-function rres(B::AbstractRowVector, A::AbstractVector)
-    return vrresinf(parent(B), A)
+function Semirings.star(A::AbstractMatrix)
+    return Matrix(slu(A))
 end
+
+function Base.:*(A::AbstractStarLU{T}, B::AbstractVecOrMat) where {T}
+    return lmul!(A, wrapcopy(T, B))
+end
+
+function Base.:*(B::AbstractMatrix, A::AbstractStarLU{T}) where {T}
+    return rmul!(wrapcopy(T, B), A)
+end
+
+function Base.:\(A::AbstractStarLU{T}, B::AbstractVecOrMat) where {T}
+    return ldiv!(A, wrapcopy(T, B))
+end
+
+function Base.:\(A::AbstractMatrix{T}, B::AbstractMatrix{T}) where {T <: SemiringNumber}
+    return fli!(A, B, fill(typemax(T), size(A, 2), size(B, 2)))
+end
+
+function Base.:\(A::SparseMatrixCSC{T}, B::AbstractMatrix{T}) where {T <: SemiringNumber}
+    return fli!(A, B, fill(typemax(T), size(A, 2), size(B, 2)))
+end
+
+function Base.:\(A::AbstractMatrix{T}, B::AbstractVector{T}) where {T <: SemiringNumber}
+    return fli!(A, B, fill(typemax(T), size(A, 2)))
+end
+
+function Base.:\(A::SparseMatrixCSC{T}, B::AbstractVector{T}) where {T <: SemiringNumber}
+    return fli!(A, B, fill(typemax(T), size(A, 2)))
+end
+
+function Base.:\(A::AbstractRowVector{T}, B::AbstractVector{T}) where {T <: SemiringNumber}
+    return fli(parent(A), B, typemax(T))
+end
+
+function Base.:/(B::AbstractMatrix, A::AbstractStarLU{T}) where {T}
+    return rdiv!(wrapcopy(T, B), A)
+end
+
+function Base.:/(B::AbstractMatrix{T}, A::AbstractMatrix{T}) where {T <: SemiringNumber}
+    return fri!(B, A, fill(typemax(T), size(B, 1), size(A, 1)))
+end
+
+function Base.:/(B::AbstractRowVector{T}, A::AbstractMatrix{T}) where {T <: SemiringNumber}
+    return fri!(B, A, transpose(fill(typemax(T), size(A, 1))))
+end
+
+function Base.:/(B::AbstractRowVector{T}, A::AbstractVector{T}) where {T <: SemiringNumber}
+    return fri(parent(B), A, typemax(T))
+end
+
+function Semirings.slmul(A::AbstractMatrix{T}, B::AbstractVecOrMat) where {T}
+    return slmul!(A, wrapcopy(T, B))
+end
+
+function Semirings.srmul(B::AbstractMatrix, A::AbstractMatrix{T}) where {T}
+    return srmul!(wrapcopy(T, B), A)
+end
+
+function Semirings.sldiv(A::AbstractMatrix{T}, B::AbstractVecOrMat) where {T}
+    return sldiv!(A, wrapcopy(T, B))
+end
+
+function Semirings.srdiv(B::AbstractMatrix, A::AbstractMatrix{T}) where {T}
+    return srdiv!(wrapcopy(T, B), A)
+end
+
+function Semirings.fma(A::AbstractMatrix, B::AbstractMatrix, C::AbstractMatrix)
+    return fma!(A, B, Matrix(C))
+end 
+
+function Semirings.fli(A::AbstractMatrix, B::AbstractMatrix, C::AbstractMatrix)
+    return fli!(A, B, Matrix(C))
+end 
+
+function Semirings.fri(B::AbstractMatrix, A::AbstractMatrix, C::AbstractMatrix)
+    return fri!(B, A, Matrix(C))
+end 
+
+# --------------------- #
+# Matrix Multiplication #
+# --------------------- #
 
 function mul_impl!(C::AbstractMatrix, A::AbstractMatrix, B::AbstractMatrix, tA::Val{R}, tB::Val{:N}) where {R}
     @assert size(C, 2) == size(B, 2)
@@ -222,9 +269,9 @@ end
 function mul_impl!(C::AbstractScalar, A::AbstractVector, B::AbstractVector, tA::Val{:N}, tB::Val{:N})
     @assert length(A) == length(B)
     #
-    #   C ← C + A B
+    #   C ← C + AB
     #
-    C[] += vmuladd(A, B)
+    C[] = fma(A, B, C[])
     return
 end
 
@@ -233,7 +280,7 @@ function mul_impl!(C::AbstractScalar, A::AbstractVector, B::AbstractVector, tA::
     #
     #   C ← C ∧ A \ B
     #
-    C[] = inf(C[], vlresinf(A, B))
+    C[] = fli(A, B, C[])
     return
 end
 
@@ -242,7 +289,7 @@ function mul_impl!(C::AbstractScalar, A::AbstractVector, B::AbstractVector, tA::
     #
     #   C ← C ∧ A / B
     #
-    C[] = inf(C[], vrresinf(A, B))
+    C[] = fri(A, B, C[])
     return
 end
 
@@ -250,7 +297,7 @@ function mul_impl!(C::AbstractScalar{T}, A::T, B::T, tA::Val{:C}, tB::Val{:N}) w
     #
     #   C ← C ∧ A \ B
     #
-    C[] = lresinf(A, B, C[])
+    C[] = fli(A, B, C[])
     return
 end
 
@@ -258,7 +305,7 @@ function mul_impl!(C::AbstractScalar{T}, A::T, B::T, tA::Val{:N}, tB::Val{:C}) w
     #
     #   C ← C ∧ A / B
     #
-    C[] = rresinf(A, B, C[])
+    C[] = fri(A, B, C[])
     return
 end
 
@@ -266,7 +313,7 @@ function mul_impl!(C::AbstractScalar{T}, A::T, B::T, tA::Val{:N}, tB::Val{:N}) w
     #
     #   C ← C + A B
     #
-    C[] = muladd(A, B, C[])
+    C[] = fma(A, B, C[])
     return
 end
 

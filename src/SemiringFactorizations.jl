@@ -3,6 +3,7 @@ module SemiringFactorizations
 using AbstractTrees
 using Accessors
 using Base: oneto, @propagate_inbounds, OneTo, Slice, AbstractVecOrMat
+using Base.FastMath: add_fast
 using Base.Threads: nthreads, @threads
 using CliqueTrees
 using CliqueTrees.Utilities
@@ -10,11 +11,15 @@ using CliqueTrees: incident, nov, PermutationOrAlgorithm, SupernodeType,
     DEFAULT_ELIMINATION_ALGORITHM, DEFAULT_SUPERNODE_TYPE
 using Graphs
 using LinearAlgebra
-using LinearAlgebra: StridedMatrix
 using Octavian
 using SparseArrays
-using TropicalGEMM
-using TropicalNumbers
+using Static
+
+include("Semirings.jl/src/Semirings.jl")
+
+using .Semirings
+using .Semirings: NativeTypes
+import .Semirings: fma
 
 const DEFAULT_BLOCK_SIZE = 32
 const SparseColumnCSC{T, I} = SubArray{T, 1, SparseMatrixCSC{T, I}, Tuple{Slice{OneTo{Int}}, Int}, false}
@@ -24,20 +29,21 @@ function unpack(A::SparseColumnCSC)
     return A.parent, A.indices[2]
 end
 
-export StrictLowerTriangular
-export StarLU, star, slu, slu!, slmul!, slmul, srmul!, srmul, slres!, slres, srres!, srres, lres, rres
-export SymbolicStarLU
-export SparseStarLU, mtstar, mtslmul!, mtsrmul!
-export TropicalMinMax, TropicalMinMaxF64, TropicalMinMaxF32,
-    TropicalMinMaxF16, TropicalMinMaxI64, TropicalMinMaxI32,
-    TropicalMinMaxI16
-export RE
-export TopN, Top2, Top3, Top4, Top5
+function wrapcopy(::Type{T}, A::AbstractArray) where {T}
+    return Array{T}(A)
+end
 
-include("re.jl")
-include("topn.jl")
+function wrapcopy(::Type{T}, A::Transpose) where {T}
+    return transpose(wrapcopy(T, parent(A)))
+end
+
+export SemiringNumber, AndOr, OrAnd, AndOrRel, OrAndRel, MaxMin, MinMax, LCMMul, GCDMul, GCDMulPos, MaxMul, MinMul, MaxPlus, MinPlus, MaxPlusPos, MinPlusPos, MaxLSE, MinLSE, MaxGod, MinGod, MaxGog, MinGog, MaxLuk, MinLuk, MaxFod, MinFod, Chain
+export StrictLowerTriangular
+export StarLU, star, slu, slmul, srmul, sldiv, srdiv, inf, fli, fri, ∧
+export SymbolicStarLU
+export SparseStarLU
+
 include("strict_lower_triangular.jl")
-include("scalar.jl")
 include("array.jl")
 include("dense.jl")
 include("symbolic.jl")

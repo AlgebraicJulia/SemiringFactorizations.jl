@@ -5,12 +5,7 @@ CurrentModule = SemiringFactorizations
 ```
 
 ```@docs
+AbstractStarLU
 slu
 star
-lres
-rres
-slmul
-srmul
-slres
-srres
 ```
