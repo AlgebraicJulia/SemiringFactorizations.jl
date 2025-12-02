@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Examples · SemiringFactorizations.jl</title><meta name="title" content="Examples · SemiringFactorizations.jl"/><meta property="og:title" content="Examples · SemiringFactorizations.jl"/><meta property="twitter:title" content="Examples · SemiringFactorizations.jl"/><meta name="description" content="Documentation for SemiringFactorizations.jl."/><meta property="og:description" content="Documentation for SemiringFactorizations.jl."/><meta property="twitter:description" content="Documentation for SemiringFactorizations.jl."/><script data-outdated-warner src="../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../search_index.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../">SemiringFactorizations.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../">SemiringFactorizations.jl</a></li><li><a class="tocitem" href="../api/">Library Reference</a></li><li class="is-active"><a class="tocitem" href>Examples</a><ul class="internal"><li><a class="tocitem" href="#Max-Completion"><span>Max Completion</span></a></li><li><a class="tocitem" href="#Now-Min-cost"><span>Now Min cost</span></a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>Examples</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Examples</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/AlgebraicJulia/SemiringFactorizations.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/AlgebraicJulia/SemiringFactorizations.jl/blob/main/docs/src/examples/scheduling.jl" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Examples:-Scheduling-with-SemiringFactorizations.jl"><a class="docs-heading-anchor" href="#Examples:-Scheduling-with-SemiringFactorizations.jl">Examples: Scheduling with SemiringFactorizations.jl</a><a id="Examples:-Scheduling-with-SemiringFactorizations.jl-1"></a><a class="docs-heading-anchor-permalink" href="#Examples:-Scheduling-with-SemiringFactorizations.jl" title="Permalink"></a></h1><p>This literate example demonstrates how to use <strong>SemiringFactorizations.jl</strong> to solve scheduling problems.</p><p>We demonstrate both max-plus and min-plus formulations.</p><pre><code class="language-julia hljs">using SemiringFactorizations, SparseArrays
+const Max64 = MaxPlus{Float64}
+const Min64 = MinPlus{Float64}</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">MinPlus{Float64}<span class="sgr90"> (alias for SemiringNumber{SemiringFactorizations.Semirings.MinPlusQuantale, Float64})</span></code></pre><h2 id="Max-Completion"><a class="docs-heading-anchor" href="#Max-Completion">Max Completion</a><a id="Max-Completion-1"></a><a class="docs-heading-anchor-permalink" href="#Max-Completion" title="Permalink"></a></h2><p>This system represents a list of tasks that need to be completed and we want to know how long the longest sequence takes to complete. The solution to this system gives us the amount of time needed to complete all tasks. We can encode sequential tasks, delayed starts, and lag between tasks.</p><p>For this example we have 8 tasks. Task 1 starts at time = 0 since it has no predecessors, Task 2 starts at time = 1 (its release time), Task 3 starts at time = 4 (after Task 1 finishes at time = 3 + 1 lag, Task 2 finishes at time = 1 + 2), and so on.</p><p>This scenario is graphed below</p><p><img src="../assets/scheduling.svg" alt="Task graph"/></p><p>We first set duration values for each task. For example we have set task 3 to take 4 units of time.</p><pre><code class="language-julia hljs">d = Max64[3, 2, 4, 3, 5, 2, 6, 4]</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">8-element Vector{MaxPlus{Float64}}:
+ 3.0
+ 2.0
+ 4.0
+ 3.0
+ 5.0
+ 2.0
+ 6.0
+ 4.0</code></pre><p>Our initial matrix A will be a Max Plus matrix with float values and -Inf. We set this matrix to be n x n. We now fill the initial Max Plus matrix with the constraints, valid ways to move throught the tasks and the lag for specific paths. constraints (finish→start) with lags ℓ<em>ij A[j,i] = d[i] + ℓ</em>ij if i → j, else -Inf</p><pre><code class="language-julia hljs">l = Max64[1, 0, 2, 1, 0, 2, 1, 0, 3, 2]
+I = [3, 3, 4, 5, 5, 6, 7, 8, 7, 6]
+J = [1, 2, 2, 3, 4, 5, 6, 7, 3, 1]
+A = sparse(I, J, d[J] + l, 8, 8)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">8×8 SparseArrays.SparseMatrixCSC{MaxPlus{Float64}, Int64} with 10 stored entries:
+  ⋅     ⋅     ⋅     ⋅     ⋅     ⋅     ⋅     ⋅  
+  ⋅     ⋅     ⋅     ⋅     ⋅     ⋅     ⋅     ⋅  
+  3.0   2.0   ⋅     ⋅     ⋅     ⋅     ⋅     ⋅  
+  ⋅     2.0   ⋅     ⋅     ⋅     ⋅     ⋅     ⋅  
+  ⋅     ⋅     4.0   3.0   ⋅     ⋅     ⋅     ⋅  
+  3.0   ⋅     ⋅     ⋅     5.0   ⋅     ⋅     ⋅  
+  ⋅     ⋅     4.0   ⋅     ⋅     2.0   ⋅     ⋅  
+  ⋅     ⋅     ⋅     ⋅     ⋅     ⋅     6.0   ⋅  </code></pre><p>Release Times: these are the time it takes to start a given task meaning that for example task 1 can start at time = 0 or no startup cost, while task 2 can start at time = 1 or 1 unit of startup cost. If a release value is set to -Inf then we are not able to start from that task, so in this case we can only start from tasks 1 or 2.</p><pre><code class="language-julia hljs">b = Max64[0, 1, -Inf, -Inf, -Inf, -Inf, -Inf, -Inf]</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">8-element Vector{MaxPlus{Float64}}:
+  0.0
+  1.0
+ -Inf
+ -Inf
+ -Inf
+ -Inf
+ -Inf
+ -Inf</code></pre><p>Kleene star</p><pre><code class="language-julia hljs">S = slu(A)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">SparseStarLU{MaxPlus{Float64}, Int64}:
+  maximum front-size: 3
+  Lnz + Unz: 32</code></pre><p>Fixed point solution for x satisfies x = A ⊗ x ⊕ b</p><pre><code class="language-julia hljs">x = S * b</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">8-element Vector{MaxPlus{Float64}}:
+  0.0
+  1.0
+  3.0
+  3.0
+  7.0
+ 12.0
+ 14.0
+ 20.0</code></pre><p>Finish times y = x + d</p><pre><code class="language-julia hljs">y = x + d</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">8-element Vector{MaxPlus{Float64}}:
+  3.0
+  2.0
+  4.0
+  3.0
+  7.0
+ 12.0
+ 14.0
+ 20.0</code></pre><p>Max completion This represents the maximum cost it takes to complete the last task, which is calculated just by finding the longest path from any avaliable starting task to the final task In this case the true solution is the path 1 -&gt; 3 -&gt; 5 -&gt; 6 -&gt; 7 -&gt; 8, total cost 3(1) + 1(1-&gt;3) + 4(3) + 1(3-&gt;5) + 5(5) + 2(5-&gt;6) + 2(6) + 1(6-&gt;7) + 6(7) + 0(7-&gt;8) + 4(8) = 29 It is worth noting that this vector gives us the maximum cost to complete any task given the starting tasks so in cases where the tasks are not semi sequential we would still get the highest cost for completion.</p><p>Max-plus matrix A</p><pre><code class="language-julia hljs">A</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">8×8 SparseArrays.SparseMatrixCSC{MaxPlus{Float64}, Int64} with 10 stored entries:
+  ⋅     ⋅     ⋅     ⋅     ⋅     ⋅     ⋅     ⋅  
+  ⋅     ⋅     ⋅     ⋅     ⋅     ⋅     ⋅     ⋅  
+  3.0   2.0   ⋅     ⋅     ⋅     ⋅     ⋅     ⋅  
+  ⋅     2.0   ⋅     ⋅     ⋅     ⋅     ⋅     ⋅  
+  ⋅     ⋅     4.0   3.0   ⋅     ⋅     ⋅     ⋅  
+  3.0   ⋅     ⋅     ⋅     5.0   ⋅     ⋅     ⋅  
+  ⋅     ⋅     4.0   ⋅     ⋅     2.0   ⋅     ⋅  
+  ⋅     ⋅     ⋅     ⋅     ⋅     ⋅     6.0   ⋅  </code></pre><p>Kleene star A*</p><pre><code class="language-julia hljs">Matrix(S)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">8×8 Matrix{MaxPlus{Float64}}:
+  0.0  -Inf  -Inf  -Inf  -Inf  -Inf  -Inf  -Inf
+ -Inf   0.0  -Inf  -Inf  -Inf  -Inf  -Inf  -Inf
+  3.0   2.0   0.0  -Inf  -Inf  -Inf  -Inf  -Inf
+ -Inf   2.0  -Inf   0.0  -Inf  -Inf  -Inf  -Inf
+  7.0   6.0   4.0   3.0   0.0  -Inf  -Inf  -Inf
+ 12.0  11.0   9.0   8.0   5.0   0.0  -Inf  -Inf
+ 14.0  13.0  11.0  10.0   7.0   2.0   0.0  -Inf
+ 20.0  19.0  17.0  16.0  13.0   8.0   6.0   0.0</code></pre><p>Earliest start times x</p><pre><code class="language-julia hljs">x</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">8-element Vector{MaxPlus{Float64}}:
+  0.0
+  1.0
+  3.0
+  3.0
+  7.0
+ 12.0
+ 14.0
+ 20.0</code></pre><p>Finish times y = x + d</p><pre><code class="language-julia hljs">y</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">8-element Vector{MaxPlus{Float64}}:
+  3.0
+  2.0
+  4.0
+  3.0
+  7.0
+ 12.0
+ 14.0
+ 20.0</code></pre><p>Completion time</p><pre><code class="language-julia hljs">Cmax = sum(y)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">20.0</code></pre><h2 id="Now-Min-cost"><a class="docs-heading-anchor" href="#Now-Min-cost">Now Min cost</a><a id="Now-Min-cost-1"></a><a class="docs-heading-anchor-permalink" href="#Now-Min-cost" title="Permalink"></a></h2><p>We now consider a min cost problem where we want to have the lowest cost to reach and complete the final task. We can constrain our starting location and ways to traverse through the task list to reach the solution. This is a version of the shortest path problem.</p><p>We first set duration values for each task. For example we have set task 3 to take 4 units of time.</p><pre><code class="language-julia hljs">d = Min64[3, 2, 4, 3, 5, 2, 6, 4]</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">8-element Vector{MinPlus{Float64}}:
+ 3.0
+ 2.0
+ 4.0
+ 3.0
+ 5.0
+ 2.0
+ 6.0
+ 4.0</code></pre><p>Our initial matrix A will be a Min Plus matrix with float values and Inf. We set this matrix to be n x n. We now fill the initial Min Plus matrix with the constraints, valid ways to move throught the tasks and the lag for specific paths. constraints (finish→start) with lags ℓ<em>ij A[j,i] = d[i] + ℓ</em>ij if i → j, else -Inf</p><pre><code class="language-julia hljs">l = Min64[1, 0, 2, 1, 0, 2, 1, 0, 3, 2]
+I = [3, 3, 4, 5, 5, 6, 7, 8, 7, 6]
+J = [1, 2, 2, 3, 4, 5, 6, 7, 3, 1]
+A = sparse(I, J, d[J] + l, 8, 8)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">8×8 SparseArrays.SparseMatrixCSC{MinPlus{Float64}, Int64} with 10 stored entries:
+  ⋅    ⋅    ⋅    ⋅    ⋅    ⋅    ⋅    ⋅ 
+  ⋅    ⋅    ⋅    ⋅    ⋅    ⋅    ⋅    ⋅ 
+ 1.0  0.0   ⋅    ⋅    ⋅    ⋅    ⋅    ⋅ 
+  ⋅   2.0   ⋅    ⋅    ⋅    ⋅    ⋅    ⋅ 
+  ⋅    ⋅   1.0  0.0   ⋅    ⋅    ⋅    ⋅ 
+ 2.0   ⋅    ⋅    ⋅   2.0   ⋅    ⋅    ⋅ 
+  ⋅    ⋅   3.0   ⋅    ⋅   1.0   ⋅    ⋅ 
+  ⋅    ⋅    ⋅    ⋅    ⋅    ⋅   0.0   ⋅ </code></pre><p>Release Times: these are the time it takes to start a given task meaning that for example task 1 can start at time = 0 or no startup cost, while task 2 can start at time = 1 or 1 unit of startup cost. If a release value is set to Inf then we are not able to start from that task, so in this case we can only start from tasks 1 or 2.</p><pre><code class="language-julia hljs">b = Min64[0, 1, Inf, Inf, Inf, Inf, Inf, Inf]</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">8-element Vector{MinPlus{Float64}}:
+ 0.0
+ 1.0
+ Inf
+ Inf
+ Inf
+ Inf
+ Inf
+ Inf</code></pre><p>Kleene star</p><pre><code class="language-julia hljs">S = slu(A)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">SparseStarLU{MinPlus{Float64}, Int64}:
+  maximum front-size: 3
+  Lnz + Unz: 32</code></pre><p>Fixed point solution for x satisfies x = A ⊗ x ⊕ b</p><pre><code class="language-julia hljs">x = S * b</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">8-element Vector{MinPlus{Float64}}:
+ 0.0
+ 1.0
+ 1.0
+ 3.0
+ 2.0
+ 2.0
+ 3.0
+ 3.0</code></pre><p>Finish times y = x + d</p><pre><code class="language-julia hljs">y = x + d</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">8-element Vector{MinPlus{Float64}}:
+ 0.0
+ 1.0
+ 1.0
+ 3.0
+ 2.0
+ 2.0
+ 3.0
+ 3.0</code></pre><p>Min completion This represents the minimum cost it takes to complete task 8 starting at either task 1 or 2. In this case the true solution is the path 1 -&gt; 6 -&gt; 7 -&gt; 8, total cost 3(1) + 2(1-&gt;6) + 2(6) + 1(6-&gt;7) + 6(7) + 0(7-&gt;8) + 4(8) = 18 It is worth noting that this vector gives us the minimum cost to complete any task given the starting tasks so in cases where the tasks are not semi sequential we would still get the least cost for completion.</p><p>Min-plus matrix A</p><pre><code class="language-julia hljs">A</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">8×8 SparseArrays.SparseMatrixCSC{MinPlus{Float64}, Int64} with 10 stored entries:
+  ⋅    ⋅    ⋅    ⋅    ⋅    ⋅    ⋅    ⋅ 
+  ⋅    ⋅    ⋅    ⋅    ⋅    ⋅    ⋅    ⋅ 
+ 1.0  0.0   ⋅    ⋅    ⋅    ⋅    ⋅    ⋅ 
+  ⋅   2.0   ⋅    ⋅    ⋅    ⋅    ⋅    ⋅ 
+  ⋅    ⋅   1.0  0.0   ⋅    ⋅    ⋅    ⋅ 
+ 2.0   ⋅    ⋅    ⋅   2.0   ⋅    ⋅    ⋅ 
+  ⋅    ⋅   3.0   ⋅    ⋅   1.0   ⋅    ⋅ 
+  ⋅    ⋅    ⋅    ⋅    ⋅    ⋅   0.0   ⋅ </code></pre><p>Kleene star A*</p><pre><code class="language-julia hljs">Matrix(S)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">8×8 Matrix{MinPlus{Float64}}:
+ 0.0  Inf  Inf  Inf  Inf  Inf  Inf  Inf
+ Inf  0.0  Inf  Inf  Inf  Inf  Inf  Inf
+ 1.0  0.0  0.0  Inf  Inf  Inf  Inf  Inf
+ Inf  2.0  Inf  0.0  Inf  Inf  Inf  Inf
+ 2.0  1.0  1.0  0.0  0.0  Inf  Inf  Inf
+ 2.0  3.0  3.0  2.0  2.0  0.0  Inf  Inf
+ 3.0  3.0  3.0  3.0  3.0  1.0  0.0  Inf
+ 3.0  3.0  3.0  3.0  3.0  1.0  0.0  0.0</code></pre><p>Minimum cumulative costs x&quot;</p><pre><code class="language-julia hljs">x</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">8-element Vector{MinPlus{Float64}}:
+ 0.0
+ 1.0
+ 1.0
+ 3.0
+ 2.0
+ 2.0
+ 3.0
+ 3.0</code></pre><p>Finish costs y = x + d</p><pre><code class="language-julia hljs">y</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">8-element Vector{MinPlus{Float64}}:
+ 0.0
+ 1.0
+ 1.0
+ 3.0
+ 2.0
+ 2.0
+ 3.0
+ 3.0</code></pre><p>Minimum Cost</p><pre><code class="language-julia hljs">Cmin = sum(y)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">0.0</code></pre><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../api/">« Library Reference</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.16.1 on <span class="colophon-date" title="Tuesday 2 December 2025 02:53">Tuesday 2 December 2025</span>. Using Julia version 1.12.2.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
