@@ -2,7 +2,7 @@ using Documenter
 using Literate: markdown
 using SemiringFactorizations
 
-markdown("src/examples/scheduling.jl", "src")
+markdown(joinpath(@__DIR__, "src", "examples", "scheduling.jl"), joinpath(@__DIR__, "src"))
 
 makedocs(;
     modules = [SemiringFactorizations],
