@@ -1,6 +1,7 @@
 [deps]
-SemiringFactorizations = "10CB580F-A957-468A-9A4C-664B3154882C"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
+Literate = "98b081ad-f1c9-55d3-8b20-4c87d4299306"
+SemiringFactorizations = "10cb580f-a957-468a-9a4c-664b3154882c"
 
 [sources]
 SemiringFactorizations = {path = ".."}

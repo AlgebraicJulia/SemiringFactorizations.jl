@@ -73,7 +73,19 @@ end
 """
     star(a)
 
-Compute the Kleene star a*.
+Compute the Kleene star ``a^*``, equal to the
+infinite sum
+
+```math
+    a^* = 1 + a + a^2 + \\cdots
+```
+
+``a^*`` is the least solution to the fixed-point
+equation
+
+```math
+    x = a x + 1.
+```
 """
 star(a)
 
@@ -101,10 +113,16 @@ function Base.:+(a::SemiringNumber{A, T}, b::SemiringNumber{A, T}) where {A <: A
     return SemiringNumber{A}(num)
 end
 
+#
+#   0 + b = b
+#
 function Base.:+(a::StaticInt{0}, b::SemiringNumber)
     return b
 end
 
+#
+#   a + 0 = a
+#
 function Base.:+(a::SemiringNumber, b::StaticInt{0})
     return a
 end
@@ -122,18 +140,30 @@ function Base.:*(a::SemiringNumber{A, T}, b::SemiringNumber{A, T}) where {A <: A
     return SemiringNumber{A}(num)
 end
 
+#
+#   0b = 0
+#
 function Base.:*(a::StaticInt{0}, b::T) where {T <: SemiringNumber}
     return zero(T)
 end
 
+#
+#   a0 = 0
+#
 function Base.:*(a::T, b::StaticInt{0}) where {T <: SemiringNumber}
     return zero(T)
 end
 
+#
+#   1b = b
+#
 function Base.:*(a::StaticInt{1}, b::SemiringNumber)
     return b
 end
 
+#
+#   a1 = a
+#
 function Base.:*(a::SemiringNumber, b::StaticInt{1})
     return a
 end
@@ -149,7 +179,19 @@ end
 """
     slmul(a, b)
 
-Compute the product a* × b.
+Compute the product ``a^* b``, equal to the
+infinite sum
+
+```math
+    a^* b = b + ab + a^2b + \\cdots
+``` 
+
+``a^* b`` is also the least solution to the
+fixed-point equation
+
+```math
+    x = ax + b.
+```
 """
 slmul(a, b)
 
@@ -179,7 +221,19 @@ end
 """
     srmul(b, a)
 
-Compute the product b × a*.
+Compute the product ``b a^*``, equal to the
+infinite sum
+
+```math
+    b a^* = b + ba + ba^2 + \\cdots
+```
+
+``b a^*`` is also the least solution to the
+fixed-point equation
+
+```math
+    x = xa + b.
+```
 """
 srmul(b, a)
 
@@ -203,7 +257,7 @@ end
 """
     fma(a, b, c)
 
-Compute the sum (a × b) + c.
+Compute the sum ``ab + c``.
 """
 fma(a, b, c)
 
@@ -256,7 +310,12 @@ end
 """
     inf(a, b)
 
-Compute the infimum a ∧ b.
+Compute the infimum ``a \\wedge b``, i.e.
+the greatest solution ``x`` to the equation
+
+```math
+    x \\leq a \\text{and} x \\leq b.
+```
 """
 inf(a, b)
 
@@ -273,11 +332,31 @@ function inf(a::SemiringNumber{A, T}, b::SemiringNumber{A, T}) where {A <: Abstr
     return SemiringNumber{A}(num)
 end
 
+"""
+    \\(a, b)
+
+Compute the residual ``a \\ b``, i.e.
+the greatest solution ``x`` to the equation
+
+```math
+    ax \\leq b.
+```
+"""
 function Base.:\(a::SemiringNumber{A, T}, b::SemiringNumber{A, T}) where {A <: AbstractQuantale, T}
     num = ldiv_impl(A, parent(a), parent(b))
     return SemiringNumber{A}(num)
 end
 
+"""
+    /(b, a)
+
+Compute the residual ``b / a``, i.e.
+the greatest solution ``x`` to the equation
+
+```math
+    xa \\leq b.
+```
+"""
 function Base.:/(b::SemiringNumber{A, T}, a::SemiringNumber{A, T}) where {A <: AbstractQuantale, T}
     num = rdiv_impl(A, parent(b), parent(a))
     return SemiringNumber{A}(num)
@@ -286,7 +365,19 @@ end
 """
     sldiv(a, b)
 
-Compute the residual a* \\ b.
+Compute the residual ``a^* \\ b``, equal to the
+infinite infimum
+
+```math
+    b \\wedge a \\ b \\wedge a^2 \\ b \\wedge \\cdots
+```
+
+``a^* \\ b`` is also the greatest solution to the
+fixed-point equation
+
+```math
+    x = a \\ x \\wedge b.
+```
 """
 sldiv(a, b)
 
@@ -306,7 +397,20 @@ end
 """
     srdiv(b, a)
 
-Compute the residual b / a*
+Compute the residual ``b / a^*``, equal to the
+infinite infimum
+
+```math
+    b \\wedge b / a \\wedge b / a^2 \\wedge \\cdots
+```
+
+``b / a^*`` is also the greatest solution to the
+fixed-point equation
+
+```math
+    x = x / a \\wedge b.
+```
+
 """
 srdiv(b, a)
 
@@ -326,7 +430,7 @@ end
 """
     fli(a, b, c)
 
-Compute (a \\ b) ∧ c.
+Compute the infimum ``(a \\ b) \\wedge c``.
 """
 fli(a, b, c)
 
@@ -346,7 +450,7 @@ end
 """
     fri(b, a, c)
 
-Compute (b / a) ∧ c.
+Compute the infimum ``(b / a) \\wedge c``.
 """
 fri(b, a, c)
 

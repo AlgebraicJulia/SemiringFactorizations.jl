@@ -1,14 +1,13 @@
 """
     AbstractStarLU{T}
 
-An `AbstractStarLU` object represents
-the Kleene star A* of an n x n matrix A
-as a pair (L, U), where
+An `AbstractStarLU` factorization object represents
+a matrix ``A`` as a pair ``(L, U)``, where
 
-  - L is an n x n strictly lower triangular matrix
-  - U is an n x n upper triangular matrix
+  - ``L`` is strictly lower triangular
+  - ``U`` is upper triangular
 
-and A* = U*L*.
+and ``A = U^* L^*``.
 """
 abstract type AbstractStarLU{T} end
 
@@ -21,7 +20,8 @@ end
 """
     slu(A::AbstractMatrix)
 
-Compute the Kleene star A*.
+Construct an [`AbstractStarLU`](@ref) factorization
+object for the Kleene star ``A^*``.
 """
 slu(A::AbstractMatrix)
 
