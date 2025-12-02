@@ -125,4 +125,4 @@ x
 y
 
 # Minimum Cost
-Cmin = sum(y)
+Cmin = reduce(∧, y)
