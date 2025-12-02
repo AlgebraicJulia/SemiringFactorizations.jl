@@ -33,7 +33,7 @@ d = Max64[3, 2, 4, 3, 5, 2, 6, 4]
 l = Max64[1, 0, 2, 1, 0, 2, 1, 0, 3, 2]
 I = [3, 3, 4, 5, 5, 6, 7, 8, 7, 6]
 J = [1, 2, 2, 3, 4, 5, 6, 7, 3, 1]
-A = sparse(I, J, d[J] + l, 8, 8)
+A = sparse(I, J, d[J] .* l, 8, 8)
 
 # Release Times: these are the time it takes to start a given task meaning that for example task 1 can start at time = 0
 # or no startup cost, while task 2 can start at time = 1 or 1 unit of startup cost. If a release value is set to -Inf then
@@ -47,7 +47,7 @@ S = slu(A)
 x = S * b
 
 # Finish times y = x + d
-y = x + d
+y = x .* d
 
 # Max completion
 # This represents the maximum cost it takes to complete the last task, which is calculated just by finding the longest path from
@@ -90,7 +90,7 @@ d = Min64[3, 2, 4, 3, 5, 2, 6, 4]
 l = Min64[1, 0, 2, 1, 0, 2, 1, 0, 3, 2]
 I = [3, 3, 4, 5, 5, 6, 7, 8, 7, 6]
 J = [1, 2, 2, 3, 4, 5, 6, 7, 3, 1]
-A = sparse(I, J, d[J] + l, 8, 8)
+A = sparse(I, J, d[J] .* l, 8, 8)
 
 # Release Times: these are the time it takes to start a given task meaning that for example task 1 can start at time = 0
 # or no startup cost, while task 2 can start at time = 1 or 1 unit of startup cost. If a release value is set to Inf then
@@ -104,7 +104,7 @@ S = slu(A)
 x = S * b
 
 # Finish times y = x + d
-y = x + d
+y = x .* d
 
 # Min completion
 # This represents the minimum cost it takes to complete task 8 starting at either task 1 or 2.
