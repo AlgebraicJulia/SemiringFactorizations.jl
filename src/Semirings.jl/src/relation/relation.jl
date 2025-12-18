@@ -1,7 +1,7 @@
 include("or_and_rel.jl")
 include("and_or_rel.jl")
 
-const RelationQuantale = Union{AndOrRelQuantale, OrAndRelQuantale}
+const RelationSemiring = Union{AndOrRelSemiring, OrAndRelSemiring}
 
 #
 #   aᶜ

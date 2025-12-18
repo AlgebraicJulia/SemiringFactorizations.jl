@@ -26,9 +26,9 @@ The following additional methods are optional.
 """
 abstract type AbstractSemiring end
 
-
+#=
 """
-    AbstractQuantale <: AbstractSemiring
+    AbstractSemiring <: AbstractSemiring
 
 A unital quantale is a quadruple (R, ≤, ×, 1), where
 
@@ -44,7 +44,7 @@ where
   - a* is the infinite sum 1 + a + a² + a³ + ⋯
 
 To create a new unital quantale, define a concrete subtype
-`A <: AbstractQuantale` as well as the following methods
+`A <: AbstractSemiring` as well as the following methods
 
   - `zero_impl(A, T)`
   - `one_impl(A, T)`
@@ -65,18 +65,19 @@ The following additional methods are optional.
   - `sldiv_impl(A, a, b)`
   - `srdiv_impl(A, b, a)`
   - `mul_add_impl(A, a, b, c)`
-  - `inf_ldiv_impl(A, a, b, c)`
-  - `inf_rdiv_impl(A, b, a, c)`
+  - `ldiv_inf_impl(A, a, b, c)`
+  - `rdiv_inf_impl(A, b, a, c)`
 
 """
-abstract type AbstractQuantale <: AbstractSemiring end
+abstract type AbstractSemiring <: AbstractSemiring end
+=#
 
 """
-    AbstractCommutativeQuantale <: AbstractQuantale
+    AbstractCommutativeSemiring <: AbstractSemiring
 
 A unital quantale (R, ≤, ×, 1) is commutative if multiplication (×)
 commutes. To create a new commutative unital quantale, define a concrete
-subtype `A <: AbstractCommutativeQuantale` as well as the following methods
+subtype `A <: AbstractCommutativeSemiring` as well as the following methods
 
   - `zero_impl(A, T)`
   - `one_impl(A, T)`
@@ -94,23 +95,74 @@ The following additional methods are optional.
   - `slmul_impl(A, a, b)`
   - `sldiv_impl(A, a, b)`
   - `mul_add_impl(A, a, b, c)`
-  - `inf_ldiv_impl(A, a, b, c)`
+  - `ldiv_inf_impl(A, a, b, c)`
 
 """
-abstract type AbstractCommutativeQuantale <: AbstractQuantale end
+abstract type AbstractCommutativeSemiring <: AbstractSemiring end
 
 """
-    AbstractLattice <: AbstractCommutativeQuantale
+    AbstractIntegralSemiring <: AbstractCommutativeSemiring
+"""
+abstract type AbstractIntegralSemiring <: AbstractCommutativeSemiring end
 
-A complete lattice (R, ≤) is called a frame if meets distribute
-over joins. Every frame defines a commutative quantale (R, ≤, ×, 1),
-where
+"""
+    AbstractTriNorm <: AbstractCommutativeSemiring
 
-  - a × b is the meet of a and b
-  - 1 is the largest element
+A function ⊤: [0, 1] × [0, 1] → [0, 1] is called a
+triangular norm if it is
 
-To create a new frame, define a concrete subtype `A <: AbstractLattice`
-as well as the following methods
+  - commutative
+  - increasing
+  - associative
+
+Each left-continuous triangular norm defines a
+commutative quantale ([0, 1], ∨, ⊤). To create a
+new quantale of this type, define a concrete subtype
+`A <: AbstractTriNorm` as well as the following methods.
+
+  - `mul_impl(A, a, b)`
+  - `ldiv_impl(A, a, b)`
+
+The following additional methods are optional.
+
+  - `mul_add_impl(A, a, b, c)`
+  - `ldiv_inf_impl(A, a, b, c)`
+  
+"""
+abstract type AbstractTriNorm <: AbstractIntegralSemiring end
+
+"""
+    AbstractTriConorm <: AbstractCommutativeSemiring
+
+A function ⊥: [0, 1] × [0, 1] → [0, 1] is called a
+triangular conorm if it is
+
+  - commutative
+  - decreasing
+  - associative
+
+Each left-continuous triangular cinorm defines a
+commutative quantale ([0, 1], ⊥, 0). To create a
+new quantale of this type, define a concrete subtype
+`A <: AbstractTriCoNorm` as well as the following methods.
+
+  - `mul_impl(A, a, b)`
+  - `ldiv_impl(A, a, b)`
+
+The following additional methods are optional.
+
+  - `mul_add_impl(A, a, b, c)`
+  - `ldiv_inf_impl(A, a, b, c)`
+  
+"""
+abstract type AbstractTriConorm <: AbstractIntegralSemiring end
+
+"""
+    AbstractLattice <: AbstractCommutativeSemiring
+
+A complete Heyting algebra (R, ≤) defines a commutative quantale
+(R, ≤, ∧, ⊤). To create a new Heyting algebra, define a concrete
+subtype `A <: AbstractLattice` as well as the following methods.
 
   - `zero_impl(A, T)`
   - `one_impl(A, T)`
@@ -123,28 +175,57 @@ The following additional methods are optional.
   - `le_impl(A, a, b)`
   - `lt_impl(A, a, b)`
   - `mul_add_impl(A, a, b, c)`
-  - `inf_ldiv_impl(A, a, b, c)`
+  - `ldiv_inf_impl(A, a, b, c)`
 
 """
-abstract type AbstractLattice <: AbstractCommutativeQuantale end
+abstract type AbstractLattice <: AbstractIntegralSemiring end
 
-# ---------------- #
-# Closed Semirings #
-# ---------------- #
+dc(::Val{:N}, ::Val{:N}) = Val(:N)
+dc(::Val{:N}, ::Val{:C}) = Val(:C)
+dc(::Val{:C}, ::Val{:N}) = Val(:C)
+dc(::Val{:C}, ::Val{:C}) = Val(:N)
 
 """
-    zero_impl(A, T)
+    zero_impl(A, T, dual)
 
 Construct an additive identity of type `T`.
 """
-zero_impl(A, T)
+function zero_impl(::Type{A}, ::Type{T}, dual::Val) where {A <: AbstractSemiring, T}
+    return id_impl(A, zero_impl(A, T, Val(:N)), dual)
+end
+
+function zero_impl(::Type{A}, ::Type{T}, dual::Val{:N}) where {A <: AbstractTriNorm, T}
+    return zero(T)
+end
+
+function zero_impl(::Type{A}, ::Type{T}, dual::Val{:N}) where {A <: AbstractTriConorm, T}
+    return one(T)
+end
+
+function zero_impl(::Type{A}, ::Type{T}, dual::Val{:C}) where {A <: AbstractTriNorm, T}
+    return one(T)
+end
+
+function zero_impl(::Type{A}, ::Type{T}, dual::Val{:C}) where {A <: AbstractTriConorm, T}
+    return zero(T)
+end
 
 """
-    one_impl(A, T)
+    one_impl(A, T, dual)
 
 Construct a multiplicative identity of type `T`.
 """
-one_impl(A, T)
+function one_impl(::Type{A}, ::Type{T}, dual::Val) where {A <: AbstractSemiring, T}
+    return id_impl(A, one_impl(A, T, Val(:N)), dual)
+end
+
+function one_impl(::Type{A}, ::Type{T}, dual::Val{:N}) where {A <: AbstractIntegralSemiring, T}
+    return zero_impl(A, T, Val(:C))
+end
+
+function one_impl(::Type{A}, ::Type{T}, dual::Val{:C}) where {A <: AbstractIntegralSemiring, T}
+    return zero_impl(A, T, Val(:N))
+end
 
 """
     star_impl(A, a)
@@ -153,57 +234,96 @@ Compute the star a*.
 """
 star_impl(A, a)
 
-function star_impl(::Type{A}, a::T) where {A <: AbstractLattice, T}
-    return one_impl(A, T)
+function star_impl(::Type{A}, a::T) where {A <: AbstractIntegralSemiring, T}
+    return one_impl(A, T, Val(:N))
 end
 
 """
-    add_impl(A, a, b)
+"""
+id_impl(A, a, dual)
+
+function id_impl(::Type{A}, a, dual::Val{:N}) where {A <: AbstractSemiring}
+    return a
+end
+
+"""
+    add_impl(A, a, b, dual)
 
 Compute the sum a + b.
 """
-add_impl(A, a, b)
+function add_impl(::Type{A}, a::T, b::T, dual::Val) where {A <: AbstractSemiring, T}
+    return id_impl(A, add_impl(A, id_impl(A, a, dual), id_impl(A, a, dual)), dual)
+end
+
+function add_impl(::Type{A}, a::T, b::T, dual::Val{:N}) where {A <: AbstractTriNorm, T}
+    return max(a, b)
+end
+
+function add_impl(::Type{A}, a::T, b::T, dual::Val{:N}) where {A <: AbstractTriConorm, T}
+    return min(a, b)
+end
+
+function add_impl(::Type{A}, a::T, b::T, dual::Val{:C}) where {A <: AbstractTriNorm, T}
+    return min(a, b)
+end
+
+function add_impl(::Type{A}, a::T, b::T, dual::Val{:C}) where {A <: AbstractTriConorm, T}
+    return max(a, b)
+end
 
 """
-    mul_impl(A, a, b)
+    mul_impl(A, a, b, dual)
 
 Compute the product a × b.
 """
-mul_impl(A, a, b)
+function mul_impl(::Type{A}, a::T, b::T, ta::Val, tb::Val, dual::Val) where {A <: AbstractSemiring, T}
+    return id_impl(A, mul_impl(A, id_impl(A, a, dc(ta, dual)), id_impl(A, b, dc(tb, dual)), Val(:N), Val(:N), Val(:N)), dual)
+end
+
+function mul_impl(::Type{A}, a::T, b::T, ta::Val{:N}, tb::Val{:C}, dual::Val) where {A <: AbstractCommutativeSemiring, T}
+    return mul_impl(A, b, a, tb, ta, dual)
+end 
+
+function mul_impl(::Type{A}, a::T, b::T, ta::Val{:N}, tb::Val{:N}, dual::Val{:N}) where {A <: AbstractLattice, T}
+    return add_impl(A, a, b, Val(:C))
+end
+
+function mul_impl(::Type{A}, a::T, b::T, ta::Val{:N}, tb::Val{:N}, dual::Val{:C}) where {A <: AbstractLattice, T}
+    return add_impl(A, a, b, Val(:N))
+end
 
 """
-    mul_add_impl(A, a, b, c)
+    mul_add_impl(A, a, b, c, ta, tb, dual)
 
 Compute the sum (a × b) + c.
 """
-function mul_add_impl(::Type{A}, a, b, c) where {A <: AbstractSemiring}
-    return add_impl(A, mul_impl(A, a, b), c)
+function mul_add_impl(::Type{A}, a::T, b::T, c::T, ta::Val, tb::Val, dual::Val) where {A <: AbstractSemiring, T}
+    return add_impl(A, mul_impl(A, a, b, ta, tb, dual), c, dual)
+end
+
+function mul_add_impl(::Type{A}, a::T, b::T, c::T, ta::Val{:N}, tb::Val{:C}, dual::Val) where {A <: AbstractCommutativeSemiring, T}
+    return mul_add_impl(A, b, a, c, tb, ta, dual)
 end
 
 """
-    slmul_impl(A, a, b)
+    smul_impl(A, a, b, ta, tb, side)
 
 Compute the product a* × b.
 """
-function slmul_impl(::Type{A}, a::T, b::T) where {A <: AbstractSemiring, T}
-    return mul_impl(A, star_impl(A, a), b)
+function smul_impl(::Type{A}, a::T, b::T, ta::Val, tb::Val, side::Val{:L}) where {A <: AbstractSemiring, T}
+    return mul_impl(A, star_impl(A, a), b, ta, tb, ta)
 end
 
-function slmul_impl(::Type{A}, a::T, b::T) where {A <: AbstractLattice, T}
-    return b
+function smul_impl(::Type{A}, a::T, b::T, ta::Val, tb::Val, side::Val{:L}) where {A <: AbstractIntegralSemiring, T}
+    return id_impl(A, b, tb)
 end
 
-"""
-    srmul_impl(A, b, a)
-
-Compute the product b × a*.
-"""
-function srmul_impl(::Type{A}, b::T, a::T) where {A <: AbstractSemiring, T}
-    return mul_impl(A, b, star_impl(A, a))
+function smul_impl(::Type{A}, a::T, b::T, ta::Val, tb::Val, side::Val{:R}) where {A <: AbstractSemiring, T}
+    return mul_impl(A, b, star_impl(A, a), tb, ta, ta)
 end
 
-function srmul_impl(::Type{A}, b::T, a::T) where {A <: AbstractCommutativeQuantale, T}
-    return slmul_impl(A, a, b)
+function smul_impl(::Type{A}, a::T, b::T, ta::Val, tb::Val, side::Val{:R}) where {A <: AbstractCommutativeSemiring, T}
+    return smul_impl(A, a, b, ta, tb, Val(:L))
 end
 
 # --------- #
@@ -211,34 +331,20 @@ end
 # --------- #
 
 """
-    typemax_impl(A, T)
-
-Construct a top element of type `T`.
-"""
-typemax_impl(A, T)
-
-function typemax_impl(::Type{A}, ::Type{T}) where {A <: AbstractLattice, T}
-    return one_impl(A, T)
-end
-
-"""
-    inf_impl(A, a, b)
-
-Compute the meet a ∧ b.
-"""
-inf_impl(A, a, b)
-
-function inf_impl(::Type{A}, a::T, b::T) where {A <: AbstractLattice, T}
-    return mul_impl(A, a, b)
-end
-
-"""
     le_impl(A, a, b)
 
 Evaluate a ≤ b.
 """
-function le_impl(::Type{A}, a::T, b::T) where {A <: AbstractQuantale, T}
-    return add_impl(A, a, b) == b
+function le_impl(::Type{A}, a::T, b::T) where {A <: AbstractSemiring, T}
+    return add_impl(A, a, b, Val(:N)) == b
+end
+
+function le_impl(::Type{A}, a::T, b::T) where {A <: AbstractTriNorm, T}
+    return a <= b
+end
+
+function le_impl(::Type{A}, a::T, b::T) where {A <: AbstractTriConorm, T}
+    return a >= b
 end
 
 """
@@ -246,68 +352,14 @@ end
 
 Evaluate a < b.
 """
-function lt_impl(::Type{A}, a::T, b::T) where {A <: AbstractQuantale, T}
+function lt_impl(::Type{A}, a::T, b::T) where {A <: AbstractSemiring, T}
     return (a != b) & le_impl(A, a, b)
 end
 
-"""
-    ldiv_impl(A, a, b)
-
-Compute the residual a \\ b.
-"""
-ldiv_impl(A, a, b)
-
-"""
-    rdiv_impl(A, b, a)
-
-Compute the residual b / a.
-"""
-rdiv_impl(A, b, a)
-
-function rdiv_impl(::Type{A}, b::T, a::T) where {A <: AbstractCommutativeQuantale, T}
-    return ldiv_impl(A, a, b)
+function lt_impl(::Type{A}, a::T, b::T) where {A <: AbstractTriNorm, T}
+    return a < b
 end
 
-"""
-    sldiv_impl(A, a, b)
-
-Compute the residual a* \\ b.
-"""
-function sldiv_impl(::Type{A}, a::T, b::T) where {A <: AbstractQuantale, T}
-    return ldiv_impl(A, star_impl(A, a), b)
-end
-
-"""
-    srdiv_impl(A, b, a)
-
-Compute the residual b / a*.
-"""
-function srdiv_impl(::Type{A}, b::T, a::T) where {A <: AbstractQuantale, T}
-    return rdiv_impl(A, b, star_impl(A, a))
-end
-
-function srdiv_impl(::Type{A}, b::T, a::T) where {A <: AbstractCommutativeQuantale, T}
-    return sldiv_impl(A, a, b)
-end
-
-"""
-    inf_ldiv_impl(A, a, b, c)
-
-Compute the meet (a \\ b) ∧ c.
-"""
-function inf_ldiv_impl(::Type{A}, a::T, b::T, c::T) where {A <: AbstractQuantale, T}
-    return inf_impl(A, ldiv_impl(A, a, b), c)
-end
-
-"""
-    inf_rdiv_impl(A, b, a, c)
-
-Compute the meet (b / a) ∧ c.
-"""
-function inf_rdiv_impl(::Type{A}, b::T, a::T, c::T) where {A <: AbstractQuantale, T}
-    return inf_impl(A, rdiv_impl(A, b, a), c)
-end
-
-function inf_rdiv_impl(::Type{A}, b::T, a::T, c::T) where {A <: AbstractCommutativeQuantale, T}
-    return inf_ldiv_impl(A, a, b, c)
+function lt_impl(::Type{A}, a::T, b::T) where {A <: AbstractTriConorm, T}
+    return a > b
 end

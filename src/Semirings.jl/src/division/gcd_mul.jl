@@ -1,4 +1,4 @@
-struct GCDMulQuantale <: AbstractCommutativeQuantale end
+struct GCDMulSemiring <: AbstractCommutativeSemiring end
 
 """
     GCDMul{T} <: Number
@@ -10,61 +10,61 @@ The semiring (ℚ⁺ ∪ {+∞}, gcd, ×, 0, 1).
   - multiplication is standard: a × b
 
 """
-const GCDMul = SemiringNumber{GCDMulQuantale}
+const GCDMul = SemiringNumber{GCDMulSemiring}
 
 #
 #   0
 #
-function zero_impl(::Type{GCDMulQuantale}, ::Type{T}) where {T}
+function zero_impl(::Type{GCDMulSemiring}, ::Type{T}, dual::Val{:N}) where {T}
     return zero(T)
-end
-
-#
-#   1
-#
-function one_impl(::Type{GCDMulQuantale}, ::Type{T}) where {T}
-    return one(T)
 end
 
 #
 #   +∞
 #
-function typemax_impl(::Type{GCDMulQuantale}, ::Type{T}) where {T}
+function zero_impl(::Type{GCDMulSemiring}, ::Type{T}, dual::Val{:C}) where {T}
     return typemax(T)
+end
+
+#
+#   1
+#
+function one_impl(::Type{GCDMulSemiring}, ::Type{T}, dual::Val) where {T}
+    return one(T)
 end
 
 #
 #   { 0  a ∈ ℕ
 #   { +∞ a ∉ ℕ
 #
-function star_impl(::Type{GCDMulQuantale}, a::T) where {T}
+function star_impl(::Type{GCDMulSemiring}, a::T) where {T}
     return isinteger(a) ? one(T) : typemax(T)
 end
 
 #
 #   gcd(a, b)
 #
-function add_impl(::Type{GCDMulQuantale}, a::T, b::T) where {T}
+function add_impl(::Type{GCDMulSemiring}, a::T, b::T, dual::Val{:N}) where {T}
     return gcd(a, b)
 end
 
 #
 #   lcm(a, b)
 #
-function inf_impl(::Type{GCDMulQuantale}, a::T, b::T) where {T}
+function add_impl(::Type{GCDMulSemiring}, a::T, b::T, dual::Val{:C}) where {T}
     return lcm(a, b)
 end
 
 #
 #   a × b
 #
-function mul_impl(::Type{GCDMulQuantale}, a::T, b::T) where {T}
+function mul_impl(::Type{GCDMulSemiring}, a::T, b::T, ta::Val{:N}, tb::Val{:N}, dual::Val{:N}) where {T}
     return iszero(a) || iszero(b) ? zero(T) : a * b
 end
 
 #
 #   b / a
 #
-function ldiv_impl(::Type{GCDMulQuantale}, a::T, b::T) where {T}
+function mul_impl(::Type{GCDMulSemiring}, a::T, b::T, ta::Val{:C}, tb::Val{:N}, dual::Val{:C}) where {T}
     return iszero(a) || isinf(b) ? typemax(T) : b / a
 end

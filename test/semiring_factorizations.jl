@@ -12,7 +12,7 @@
         @test AS \ BD == AD \ BD
         @test BD / AS == BD / AD
         @test AS + BS == AD + BD
-        @test AS ∧ BS == AD ∧ BD
+        @test AS & BS == AD & BD
 
         FS = slu(AS)
         FD = slu(AD)

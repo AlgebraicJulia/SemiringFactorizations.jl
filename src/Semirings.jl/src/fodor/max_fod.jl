@@ -1,4 +1,4 @@
-struct MaxFodQuantale <: AbstractCommutativeQuantale end
+struct MaxFodSemiring <: AbstractTriNorm end
 
 """
     MaxFod{T} <: Number
@@ -10,41 +10,13 @@ The semiring ([0, 1], ∨, ⊤, 0, 1).
   - multiplication is nilpotent conjunction
 
 """
-const MaxFod{T} = SemiringNumber{MaxFodQuantale, T}
-
-#
-#   0
-#
-function zero_impl(::Type{MaxFodQuantale}, ::Type{T}) where {T}
-    return zero(T)
-end
-
-#
-#   1
-#
-function one_impl(::Type{MaxFodQuantale}, ::Type{T}) where {T}
-    return one(T)
-end
-
-#
-#   a ∨ b
-#
-function add_impl(::Type{MaxFodQuantale}, a::T, b::T) where {T}
-    return max(a, b)
-end
-
-#
-#   a ∧ b
-#
-function inf_impl(::Type{MaxFodQuantale}, a::T, b::T) where {T}
-    return min(a, b)
-end
+const MaxFod{T} = SemiringNumber{MaxFodSemiring, T}
 
 #
 #   { 0     if a + b ≤ 1
 #   { a ∧ b if a + b > 1
 #
-function mul_impl(::Type{MaxFodQuantale}, a::T, b::T) where {T}
+function mul_impl(::Type{MaxFodSemiring}, a::T, b::T, ta::Val{:N}, tb::Val{:N}, dual::Val{:N}) where {T}
     return ifelse(a + b <= one(T), zero(T), min(a, b))
 end
 
@@ -52,20 +24,6 @@ end
 #   { 1           if a ≤ b
 #   { (1 - a) ∨ b if a > b
 #
-function ldiv_impl(::Type{MaxFodQuantale}, a::T, b::T) where {T}
+function mul_impl(::Type{MaxFodSemiring}, a::T, b::T, ta::Val{:C}, tb::Val{:N}, dual::Val{:C}) where {T}
     return ifelse(a <= b, one(T), max(one(T) - a, b))
-end
-
-#
-#   a ≤ b
-#
-function le_impl(::Type{MaxFodQuantale}, a::T, b::T) where {T}
-    return a <= b
-end
-
-#
-#   a < b
-#
-function lt_impl(::Type{MaxFodQuantale}, a::T, b::T) where {T}
-    return a < b
 end

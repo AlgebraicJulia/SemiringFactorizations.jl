@@ -1,4 +1,4 @@
-struct MaxPlusQuantale <: AbstractCommutativeQuantale end
+struct MaxPlusSemiring <: AbstractCommutativeSemiring end
 
 """
     MaxPlus{T} <: Number
@@ -11,40 +11,40 @@ The semiring (ℝ ∪ {-∞, +∞}, ∨, +, -∞, 0).
 
 It is sometimes called the arctic semiring.
 """
-const MaxPlus = SemiringNumber{MaxPlusQuantale}
+const MaxPlus = SemiringNumber{MaxPlusSemiring}
 
 #
 #   -∞
 #
-function zero_impl(::Type{MaxPlusQuantale}, ::Type{T}) where {T}
+function zero_impl(::Type{MaxPlusSemiring}, ::Type{T}, dual::Val{:N}) where {T}
     return typemin(T)
-end
-
-#
-#   0
-#
-function one_impl(::Type{MaxPlusQuantale}, ::Type{T}) where {T}
-    return zero(T)
 end
 
 #
 #   +∞
 #
-function typemax_impl(::Type{MaxPlusQuantale}, ::Type{T}) where {T}
+function zero_impl(::Type{MaxPlusSemiring}, ::Type{T}, dual::Val{:C}) where {T}
     return typemax(T)
+end
+
+#
+#   0
+#
+function one_impl(::Type{MaxPlusSemiring}, ::Type{T}, dual::Val) where {T}
+    return zero(T)
 end
 
 #
 #   a ∨ b
 #
-function add_impl(::Type{MaxPlusQuantale}, a::T, b::T) where {T}
+function add_impl(::Type{MaxPlusSemiring}, a::T, b::T, dual::Val{:N}) where {T}
     return max(a, b)
 end
 
 #
 #   a ∧ b
 #
-function inf_impl(::Type{MaxPlusQuantale}, a::T, b::T) where {T}
+function add_impl(::Type{MaxPlusSemiring}, a::T, b::T, dual::Val{:C}) where {T}
     return min(a, b)
 end
 
@@ -56,11 +56,11 @@ end
 #   +∞ | -∞  +∞   +∞ |
 #      + ----------- +
 # 
-function mul_impl(::Type{MaxPlusQuantale}, a::T, b::T) where {T}
+function mul_impl(::Type{MaxPlusSemiring}, a::T, b::T, ta::Val{:N}, tb::Val{:N}, dual::Val{:N}) where {T}
     return a + b
 end
 
-function mul_impl(::Type{MaxPlusQuantale}, a::T, b::T) where {T <: Rational}
+function mul_impl(::Type{MaxPlusSemiring}, a::T, b::T, ta::Val{:N}, tb::Val{:N}, dual::Val{:N}) where {T <: Rational}
     ⊥ = typemin(T)
     return (a == ⊥) || (b == ⊥) ? ⊥ : a + b
 end
@@ -73,11 +73,11 @@ end
 #   +∞ | -∞  -∞   +∞ |
 #      + ----------- +
 # 
-function ldiv_impl(::Type{MaxPlusQuantale}, a::T, b::T) where {T}
+function mul_impl(::Type{MaxPlusSemiring}, a::T, b::T, ta::Val{:C}, tb::Val{:N}, dual::Val{:C}) where {T}
     return b - a
 end
 
-function ldiv_impl(::Type{MaxPlusQuantale}, a::T, b::T) where {T <: Rational}
+function mul_impl(::Type{MaxPlusSemiring}, a::T, b::T, ta::Val{:C}, tb::Val{:N}, dual::Val{:C}) where {T <: Rational}
     ⊤ = typemax(T)
     ⊥ = typemin(T)
     return (a == ⊥) || (b == ⊤) ? ⊤ : b - a
@@ -86,13 +86,13 @@ end
 #
 #   a ≤ b
 #
-function le_impl(::Type{MaxPlusQuantale}, a::T, b::T) where {T}
+function le_impl(::Type{MaxPlusSemiring}, a::T, b::T) where {T}
     return a <= b
 end
 
 #
 #   a < b
 #
-function lt_impl(::Type{MaxPlusQuantale}, a::T, b::T) where {T}
+function lt_impl(::Type{MaxPlusSemiring}, a::T, b::T) where {T}
     return a < b
 end

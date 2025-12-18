@@ -16,28 +16,28 @@ const MaxMin = SemiringNumber{MaxMinLattice}
 #
 #   -∞
 #
-function zero_impl(::Type{MaxMinLattice}, ::Type{T}) where {T}
+function zero_impl(::Type{MaxMinLattice}, ::Type{T}, dual::Val{:N}) where {T}
     return typemin(T)
 end
 
 #
 #   +∞
 #
-function one_impl(::Type{MaxMinLattice}, ::Type{T}) where {T}
+function zero_impl(::Type{MaxMinLattice}, ::Type{T}, dual::Val{:C}) where {T}
     return typemax(T)
 end
 
 #
 #   a ∨ b
 #
-function add_impl(::Type{MaxMinLattice}, a::T, b::T) where {T}
+function add_impl(::Type{MaxMinLattice}, a::T, b::T, dual::Val{:N}) where {T}
     return max(a, b)
 end
 
 #
 #   a ∧ b
 #
-function mul_impl(::Type{MaxMinLattice}, a::T, b::T) where {T}
+function add_impl(::Type{MaxMinLattice}, a::T, b::T, dual::Val{:C}) where {T}
     return min(a, b)
 end
 

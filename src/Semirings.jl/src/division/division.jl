@@ -1,7 +1,7 @@
 include("lcm_mul.jl")
 include("gcd_mul.jl")
 
-const DivisionQuantale = Union{LCMMulQuantale, GCDMulQuantale}
+const DivisionSemiring = Union{LCMMulSemiring, GCDMulSemiring}
 
 function LCMMul(a::GCDMul)
     return LCMMul(inv(parent(a)))

@@ -1,4 +1,4 @@
-struct AndOrRelQuantale <: AbstractQuantale end
+struct AndOrRelSemiring <: AbstractSemiring end
 
 """
     AndOrRel <: Number
@@ -10,67 +10,67 @@ The semiring (2⁶⁴, ∩, †, 2⁶⁴, Iᶜ).
    - multiplication is relative sum: a † b
 
 """
-const AndOrRel = SemiringNumber{AndOrRelQuantale, UInt64}
+const AndOrRel = SemiringNumber{AndOrRelSemiring, UInt64}
 
 #
 #   2⁶⁴
 #
-function zero_impl(::Type{AndOrRelQuantale}, ::Type{T}) where {T}
+function zero_impl(::Type{AndOrRelSemiring}, ::Type{T}, dual::Val{:N}) where {T}
     return typemax(T)
-end
-
-#
-#   Iᶜ
-#
-function one_impl(::Type{AndOrRelQuantale}, ::Type{UInt64})
-    return 0x7FBFDFEFF7FBFDFE
 end
 
 #
 #   ∅
 #
-function typemax_impl(::Type{AndOrRelQuantale}, ::Type{T}) where {T}
+function zero_impl(::Type{AndOrRelSemiring}, ::Type{T}, dual::Val{:C}) where {T}
     return zero(T)
+end
+
+#
+#   Iᶜ
+#
+function one_impl(::Type{AndOrRelSemiring}, ::Type{UInt64}, dual::Val{:N})
+    return 0x7FBFDFEFF7FBFDFE
 end
 
 #
 #   ((aᶜ)*)ᶜ
 #
-function star_impl(::Type{AndOrRelQuantale}, a)
+function star_impl(::Type{AndOrRelSemiring}, a)
     return ~bst(~a)
 end
 
 #
 #   a ∩ b
 #
-function add_impl(::Type{AndOrRelQuantale}, a::T, b::T) where {T}
+function add_impl(::Type{AndOrRelSemiring}, a::T, b::T, dual::Val{:N}) where {T}
     return a & b
 end
 
 #
 #   a ∪ b
 #
-function inf_impl(::Type{AndOrRelQuantale}, a::T, b::T) where {T}
+function add_impl(::Type{AndOrRelSemiring}, a::T, b::T, dual::Val{:C}) where {T}
     return a | b
 end
 
 #
 #   (aᶜ × bᶜ)ᶜ
 #
-function mul_impl(::Type{AndOrRelQuantale}, a::T, b::T) where {T}
+function mul_impl(::Type{AndOrRelSemiring}, a::T, b::T, ta::Val{:N}, tb::Val{:N}, dual::Val{:N}) where {T}
     return ~bml(~a, ~b)
 end
 
 #
 #   (aᶜ)ᵀ × b
 #
-function ldiv_impl(::Type{AndOrRelQuantale}, a::T, b::T) where {T}
+function mul_impl(::Type{AndOrRelSemiring}, a::T, b::T, ta::Val{:C}, tb::Val{:N}, dual::Val{:C}) where {T}
     return bml(btr(~a), b)
 end
 
 #
 #   b × (aᶜ)ᵀ
 #
-function rdiv_impl(::Type{AndOrRelQuantale}, b::T, a::T) where {T}
-    return bml(b, btr(~a))
+function mul_impl(::Type{AndOrRelSemiring}, a::T, b::T, ta::Val{:N}, tb::Val{:C}, dual::Val{:C}) where {T}
+    return bml(a, btr(~b))
 end

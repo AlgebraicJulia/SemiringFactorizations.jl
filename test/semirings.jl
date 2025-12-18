@@ -1,13 +1,17 @@
-function ⪯(a, b)
-    return a <= b || a ≈ b
+function Base.:≈(a::T, b::T) where {T <: Union{Tuple, AbstractMatrix}}
+    return all(splat(≈), zip(a, b))
 end
 
-function ⪯(a::AbstractMatrix, b::AbstractMatrix)
-    return all(a .⪯ b)
+function Base.:<(a::T, b::T) where {T <: AbstractMatrix}
+    return all(splat(<), zip(a, b))
 end
 
-function Base.:<(a::AbstractMatrix, b::AbstractMatrix)
-    return all(a .< b)
+function ⪯(a::T, b::T) where {T <: AbstractMatrix}
+    return all(splat(⪯), zip(a, b))
+end
+
+function ⪯(a::T, b::T) where {T}
+    return (a < b) || (a ≈ b)
 end
 
 function test_semiring(a, b, c, ∅, ϵ)
@@ -37,23 +41,16 @@ function test_semiring(a, b, c, ∅, ϵ)
 
     # star is a quasi-invere
     @test a * star(a) + ϵ ≈ star(a) * a + ϵ ≈ star(a)
-
-    # starred operations
-    @test star(a) * b ≈ slmul(a, b)
-    @test a * star(b) ≈ srmul(a, b)
-
-    # ternary operations
-    @test (a * b) + c ≈ fma(a, b, c)
 end
 
 function test_quantale(a, b, c, ∅, ϵ, ⊤)
     test_semiring(a, b, c, ∅, ϵ)
 
     # ⊤ is the identity for infimum
-    @test ⊤ ∧ a ≈ a ∧ ⊤ ≈ a
+    @test ⊤ & a ≈ a & ⊤ ≈ a
 
     # addition and infimum are connected by the absorbtion law
-    @test a + (a ∧ b) ≈ a ∧ (a + b) ≈ a
+    @test a + (a & b) ≈ a & (a + b) ≈ a
 
     # lattice is residuated
     @test (a * b ⪯ c) == (b ⪯ a \ c) == (a ⪯ c / b)
@@ -71,7 +68,7 @@ function test_quantale(a, b, c, ∅, ϵ, ⊤)
     @test (a < b && b < c) <= (a < c)
 
     # partial ordering agrees with lattice structure
-    @test (a ⪯ b) == (a ≈ a ∧ b) == (b ≈ a + b)
+    @test (a ⪯ b) == (a ≈ a & b) == (b ≈ a + b)
 
     # strict ordering agrees with partial ordering
     @test (a < b) == (a != b && a ⪯ b)
@@ -79,14 +76,6 @@ function test_quantale(a, b, c, ∅, ϵ, ⊤)
     # star is a Kleene star
     @test (a * b ⪯ b) <= (star(a) * b ⪯ b)
     @test (a * b ⪯ a) <= (a * star(b) ⪯ a)
-
-    # starred operations
-    @test sldiv(a, b) ≈ star(a) \ b
-    @test srdiv(a, b) ≈ a / star(b)
-
-    # ternary operations
-    @test (a \ b) ∧ c ≈ fli(a, b, c)
-    @test (a / b) ∧ c ≈ fri(a, b, c)
 
     # Quantales and their Applications
     # Rosenthal
@@ -164,19 +153,6 @@ end
         b = rand(AndOrRel, 10, 10) .|> T
         c = rand(AndOrRel, 10, 10) .|> T
         test_quantale(a, b, c, zero(a), one(a), typemax.(a))
-    end
-
-    # chains
-    for T in (OrAnd{UInt64}, OrAndRel, MinMax{Float64}, MinPlus{Float64})
-        a1 = rand(T); a2 = rand(T) ∧ a1; a3 = rand(T) ∧ a2
-        b1 = rand(T); b2 = rand(T) ∧ b1; b3 = rand(T) ∧ b2
-        c1 = rand(T); c2 = rand(T) ∧ c1; c3 = rand(T) ∧ c2
-
-        a = Chain((a1, a2, a3))
-        b = Chain((b1, b2, b3))
-        c = Chain((c1, c2, c3))
-
-        test_quantale(a, b, c, zero(a), one(a), typemax(a))
     end
 
     # bottleneck lattices

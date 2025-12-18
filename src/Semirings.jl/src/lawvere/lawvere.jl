@@ -3,7 +3,7 @@ include("min_plus_pos.jl")
 include("max_lse.jl")
 include("min_lse.jl")
 
-const LawvereQuantale{P} = Union{MaxPlusPosQuantale{P}, MinPlusPosQuantale{P}, MaxLSEQuantale{P}, MinLSEQuantale{P}}
+const LawvereSemiring{P} = Union{MaxPlusPosSemiring{P}, MinPlusPosSemiring{P}, MaxLSESemiring{P}, MinLSESemiring{P}}
 
 #
 #   a^(R/P)
@@ -116,18 +116,4 @@ end
 #
 function MinLSE{P}(a::MinLSE{R}) where {P, R}
     return MinLSE{P}(parent(a) * R/P)
-end
-
-#
-#   1
-#
-function typemax_impl(::Type{A}, ::Type{T}) where {A <: LawvereQuantale, T}
-    return one_impl(A, T)
-end
-
-#
-#   1
-#
-function star_impl(::Type{A}, a::T) where {A <: LawvereQuantale, T}
-    return one_impl(A, T)
 end

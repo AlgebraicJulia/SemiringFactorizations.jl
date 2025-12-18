@@ -21,6 +21,6 @@ end
 #   { 1 if a ≤ b
 #   { b if a > b
 #
-function ldiv_impl(::Type{A}, a::T, b::T) where {A <: BottleneckLattice, T}
-    return ifelse(le_impl(A, a, b), one_impl(A, T), b)
+function mul_impl(::Type{A}, a::T, b::T, ta::Val{:C}, tb::Val{:N}, dual::Val{:C}) where {A <: BottleneckLattice, T}
+    return ifelse(le_impl(A, a, b), one_impl(A, T, Val(:N)), b)
 end

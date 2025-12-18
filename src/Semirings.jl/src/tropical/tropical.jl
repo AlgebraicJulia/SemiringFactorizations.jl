@@ -3,7 +3,7 @@ include("min_mul.jl")
 include("max_plus.jl")
 include("min_plus.jl")
 
-const TropicalQuantale = Union{MaxMulQuantale, MinMulQuantale, MaxPlusQuantale, MinPlusQuantale}
+const TropicalSemiring = Union{MaxMulSemiring, MinMulSemiring, MaxPlusSemiring, MinPlusSemiring}
 
 #
 #   1/a
@@ -93,8 +93,8 @@ end
 #   { 1 if a ≤ 1
 #   { ⊤ if a > 1
 #
-function star_impl(::Type{A}, a::T) where {A <: TropicalQuantale, T}
-    ϵ = one_impl(A, T)
-    ⊤ = typemax_impl(A, T)
+function star_impl(::Type{A}, a::T) where {A <: TropicalSemiring, T}
+    ϵ = one_impl(A, T, Val(:N))
+    ⊤ = zero_impl(A, T, Val(:C))
     return ifelse(le_impl(A, a, ϵ), ϵ, ⊤)
 end

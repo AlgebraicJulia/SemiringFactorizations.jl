@@ -15,34 +15,34 @@ const AndOr = SemiringNumber{AndOrLattice}
 #
 #   2ⁿ
 #
-function zero_impl(::Type{AndOrLattice}, ::Type{T}) where {T}
+function zero_impl(::Type{AndOrLattice}, ::Type{T}, dual::Val{:N}) where {T}
     return typemax(T)
 end
 
 #
 #   0
 #
-function one_impl(::Type{AndOrLattice}, ::Type{T}) where {T}
+function zero_impl(::Type{AndOrLattice}, ::Type{T}, dual::Val{:C}) where {T}
     return zero(T)
 end
 
 #
 #   a ∩ b
 #
-function add_impl(::Type{AndOrLattice}, a::T, b::T) where {T}
+function add_impl(::Type{AndOrLattice}, a::T, b::T, dual::Val{:N}) where {T}
     return a & b
 end
 
 #
 #   a ∪ b
 #
-function mul_impl(::Type{AndOrLattice}, a::T, b::T) where {T}
+function add_impl(::Type{AndOrLattice}, a::T, b::T, dual::Val{:C}) where {T}
     return a | b
 end
 
 #
 #   b - a
 #
-function ldiv_impl(::Type{AndOrLattice}, a::T, b::T) where {T}
+function mul_impl(::Type{AndOrLattice}, a::T, b::T, ta::Val{:C}, tb::Val{:N}, dual::Val{:C}) where {T}
     return b & ~a
 end

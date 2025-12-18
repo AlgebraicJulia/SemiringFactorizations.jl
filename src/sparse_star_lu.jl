@@ -7,16 +7,46 @@ struct SparseStarLU{T, I} <: AbstractStarLU{T}
     Uval::FVector{T}
 end
 
-function Base.show(io::IO, ::MIME"text/plain", fact::T) where {T <: SparseStarLU}
+struct SparseStarTriangular{Q, T, I} <: AbstractStarTriangular{Q, T}
+    symb::SymbolicStarLU{I}
+    Rptr::FVector{I}
+    Rval::FVector{T}
+    Lptr::FVector{I}
+    Lval::FVector{T}
+end
+
+function AbstractStarTriangular{Q}(F::SparseStarLU) where {Q}
+    return SparseStarTriangular{Q}(F)
+end
+
+function SparseStarTriangular{:L}(F::SparseStarLU)
+    return SparseStarTriangular{:L}(F.symb, F.Rptr, F.Rval, F.Lptr, F.Lval)
+end
+
+function SparseStarTriangular{:U}(F::SparseStarLU)
+    return SparseStarTriangular{:U}(F.symb, F.Rptr, F.Rval, F.Lptr, F.Uval)
+end
+
+function SparseStarTriangular{Q}(
+        symb::SymbolicStarLU{I},
+        Rptr::AbstractVector{I},
+        Rval::AbstractVector{T},
+        Lptr::AbstractVector{I},
+        Lval::AbstractVector{T},
+    ) where {Q, T, I}
+    return SparseStarTriangular{Q, T, I}(symb, Rptr, Rval, Lptr, Lval)
+end
+
+function Base.show(io::IO, ::MIME"text/plain", fact::T) where {T <: Union{SparseStarLU, SparseStarTriangular}}
     frt = fact.symb.nFval
     nnz = fact.symb.nRval + fact.symb.nLval + fact.symb.nLval
 
     print(io, "$T:")
     print(io, "\n  maximum front-size: $frt")
-    print(io, "\n  Lnz + Unz: $nnz")
+    print(io, "\n  structural nonzeros: $nnz")
 end
 
-function Base.size(F::SparseStarLU)
+function Base.size(F::SparseStarTriangular)
     n = convert(Int, nov(F.symb.res))
     return (n, n)
 end
@@ -91,37 +121,59 @@ function slu(matrix::SparseMatrixCSC{T, I}, symb::SymbolicStarLU{I}) where {T, I
     return SparseStarLU(symb, Rptr, Rval, Lptr, Lval, Uval)    
 end
 
-function lmul!(A::SparseStarLU, B::AbstractVecOrMat)
-    sp_smul_impl!(A, B, Val(:N), Val(:L))
+function lmul!(A::SparseStarTriangular{Q}, B::AbstractVecOrMat) where {Q}
+    return sp_smul_impl!(A.symb, A.Rptr, A.Rval, A.Lptr, A.Lval, B, Val(:N), Val(:N), Val(Q), Val(:L))
+end
+
+function rmul!(B::AbstractMatrix, A::SparseStarTriangular{Q}) where {Q}
+    return sp_smul_impl!(A.symb, A.Rptr, A.Rval, A.Lptr, A.Lval, unrow(B), Val(:N), Val(:N), Val(Q), Val(:R))
+end
+
+function LinearAlgebra.ldiv!(A::SparseStarTriangular{Q}, B::AbstractVecOrMat) where {Q}
+    return sp_smul_impl!(A.symb, A.Rptr, A.Rval, A.Lptr, A.Lval, B, Val(:C), Val(:N), Val(Q), Val(:L))
+end
+
+function LinearAlgebra.rdiv!(B::AbstractMatrix, A::SparseStarTriangular{Q}) where {Q}
+    return sp_smul_impl!(A.symb, A.Rptr, A.Rval, A.Lptr, A.Lval, unrow(B), Val(:C), Val(:N), Val(Q), Val(:R))
+end
+
+function sp_smul_impl!(
+        symb::SymbolicStarLU{I},
+        Rptr::AbstractVector{I},
+        Rval::AbstractVector{T},
+        Lptr::AbstractVector{I},
+        Lval::AbstractVector{T},
+        B::AbstractVecOrMat,
+        tA::Val,
+        tB::Val,
+        uplo::Val,
+        side::Val,
+    ) where {T, I <: Integer}
+
+    if B isa AbstractVector || isone(nthreads())
+        # single-threaded
+        st_sp_smul_impl!(symb, Rptr, Rval, Lptr, Lval, B, tA, tB, uplo, side)
+    else
+        # multi-threaded
+        mt_sp_smul_impl!(symb, Rptr, Rval, Lptr, Lval, B, tA, tB, uplo, side)
+    end
+
     return B
 end
 
-function rmul!(B::AbstractMatrix, A::SparseStarLU)
-    sp_smul_impl!(A, B, Val(:N), Val(:R))
-    return B
-end
+function st_sp_smul_impl!(
+        symb::SymbolicStarLU{I},
+        Rptr::AbstractVector{I},
+        Rval::AbstractVector{T},
+        Lptr::AbstractVector{I},
+        Lval::AbstractVector{T},
+        B::AbstractVecOrMat,
+        tA::Val{R},
+        tB::Val{:N},
+        uplo::Val{Q},
+        side::Val{S},
+    ) where {T, I <: Integer, Q, R, S}
 
-function rmul!(B::AbstractRowVector, A::SparseStarLU)
-    sp_smul_impl!(A, parent(B), Val(:N), Val(:R))
-    return B
-end
-
-function ldiv!(A::SparseStarLU, B::AbstractVecOrMat)
-    sp_smul_impl!(A, B, Val(:C), Val(:L))
-    return B
-end
-
-function rdiv!(B::AbstractMatrix, A::SparseStarLU)
-    sp_smul_impl!(A, B, Val(:C), Val(:R))
-    return B
-end
-
-function rdiv!(B::AbstractRowVector, A::SparseStarLU)
-    sp_smul_impl!(A, parent(B), Val(:C), Val(:R))
-    return B
-end
-
-function sp_smul_impl!(A::SparseStarLU{T, I}, B::AbstractVecOrMat, tA::Val, side::Val{S}) where {T, I <: Integer, S}
     if B isa AbstractVector
         neqn = convert(I, length(B))
         nrhs = one(I)
@@ -133,20 +185,14 @@ function sp_smul_impl!(A::SparseStarLU{T, I}, B::AbstractVecOrMat, tA::Val, side
         nrhs = convert(I, size(B, 1))
     end
 
-    ord = A.symb.ord
-    res = A.symb.res
-    rel = A.symb.rel
-    chd = A.symb.chd
+    ord = symb.ord
+    res = symb.res
+    rel = symb.rel
+    chd = symb.chd
 
-    Rptr = A.Rptr
-    Rval = A.Rval
-    Lptr = A.Lptr
-    Lval = A.Lval
-    Uval = A.Uval
-
-    nMptr = A.symb.nMptr
-    nNval = A.symb.nNval
-    nFval = A.symb.nFval
+    nMptr = symb.nMptr
+    nNval = symb.nNval
+    nFval = symb.nFval
 
     Mptr = FVector{I}(undef, nMptr)
     Mval = FVector{T}(undef, nNval * nrhs)
@@ -160,91 +206,54 @@ function sp_smul_impl!(A::SparseStarLU{T, I}, B::AbstractVecOrMat, tA::Val, side
         C = FMatrix{T}(undef, nrhs, neqn)
     end
 
-    if B isa AbstractVector
-        copyto!(C, view(B, ord))
-    elseif S == :L
-        copyto!(C, view(B, ord, :))
+    if Q == :L && (R == :N && S == :L || R == :C && S == :R) || Q == :U && (R == :N && S == :R || R == :C && S == :L)
+        if B isa AbstractVector
+            copyto!(C, view(B, ord))
+        elseif S == :L
+            copyto!(C, view(B, ord, :))
+        else
+            copyto!(C, view(B, :, ord))
+        end
     else
-        copyto!(C, view(B, :, ord))
+        copyto!(C, B)
     end
 
     sp_smul_impl!(C, Mptr, Mval, Rptr, Rval, Lptr,
-        Lval, Uval, Fval, res, rel, chd, tA, side)
+        Lval, Fval, res, rel, chd, tA, tB, uplo, side)
 
-    if B isa AbstractVector
-        copyto!(view(B, ord), C)
-    elseif S == :L
-        copyto!(view(B, ord, :), C)
+    if Q == :L && (R == :N && S == :L || R == :C && S == :R) || Q == :U && (R == :N && S == :R || R == :C && S == :L)
+        copyto!(B, C)
     else
-        copyto!(view(B, :, ord), C)
+        if B isa AbstractVector
+            copyto!(view(B, ord), C)
+        elseif S == :L
+            copyto!(view(B, ord, :), C)
+        else
+            copyto!(view(B, :, ord), C)
+        end
     end
 
-    return
-end
-
-"""
-    mtlmul!(A::SparseStarLU, B::AbstractMatrix)
-
-A multi-threaded version of [`lmul!`](@ref).
-"""
-function mtlmul!(A::SparseStarLU, B::AbstractMatrix)
-    sp_mtsmul_impl!(A, B, Val(:N), Val(:L))
     return B
 end
 
-"""
-    mtrmul!(B::AbstractMatrix, A::SparseStarLU)
+function mt_sp_smul_impl!(
+        symb::SymbolicStarLU{I},
+        Rptr::AbstractVector{I},
+        Rval::AbstractVector{T},
+        Lptr::AbstractVector{I},
+        Lval::AbstractVector{T},
+        B::AbstractVecOrMat,
+        tA::Val,
+        tB::Val{:N},
+        uplo::Val,
+        side::Val{S},
+    ) where {T, I <: Integer, S}
 
-A multi-threaded version of [`rmul!`](@ref).
-"""
-function mtrmul!(B::AbstractMatrix, A::SparseStarLU)
-    sp_mtsmul_impl!(A, B, Val(:N), Val(:R))
-    return B
-end
-
-"""
-    mtldiv!(A::SparseStarLU, B::AbstractMatrix)
-
-A multi-threaded version of [`ldiv!`](@ref).
-"""
-function mtldiv!(A::SparseStarLU, B::AbstractMatrix)
-    sp_mtsmul_impl!(A, B, Val(:C), Val(:L))
-    return B
-end
-
-"""
-    mtrdiv!(B::AbstractMatrix, A::SparseStarLU)
-
-A multi-threaded version of [`rdiv!`](@ref).
-"""
-function mtrdiv!(B::AbstractMatrix, A::SparseStarLU)
-    sp_mtsmul_impl!(A, B, Val(:C), Val(:R))
-    return B
-end
-
-function sp_mtsmul_impl!(A::SparseStarLU{T, I}, B::AbstractMatrix, tA::Val, side::Val{S}) where {T, I <: Integer, S}
     if S == :L
-        neqn = convert(I, size(B, 1))
         nrhs = convert(I, size(B, 2))
     else
-        neqn = convert(I, size(B, 2))
         nrhs = convert(I, size(B, 1))
     end
-
-    ord = A.symb.ord
-    res = A.symb.res
-    rel = A.symb.rel
-    chd = A.symb.chd
-
-    Rptr = A.Rptr
-    Rval = A.Rval
-    Lptr = A.Lptr
-    Lval = A.Lval
-    Uval = A.Uval
-
-    nMptr = A.symb.nMptr
-    nNval = A.symb.nNval
-    nFval = A.symb.nFval
 
     blocksize = convert(I, max(32, div(nrhs, 4nthreads())))
 
@@ -253,32 +262,15 @@ function sp_mtsmul_impl!(A::SparseStarLU{T, I}, B::AbstractMatrix, tA::Val, side
         stop = strt + size - one(I)
 
         if S == :L
-            C = FMatrix{T}(undef, neqn, size)
+            Bb = view(B, :, strt:stop)
         else
-            C = FMatrix{T}(undef, size, neqn)
+            Bb = view(B, strt:stop, :)
         end
 
-        if S == :L
-            copyto!(C, view(B, ord, strt:stop))
-        else
-            copyto!(C, view(B, strt:stop, ord))
-        end
-
-        Mptr = FVector{I}(undef, nMptr)
-        Mval = FVector{T}(undef, nNval * size)
-        Fval = FVector{T}(undef, nFval * size)
-
-        sp_smul_impl!(C, Mptr, Mval, Rptr, Rval, Lptr,
-            Lval, Uval, Fval, res, rel, chd, tA, side)
-
-        if S == :L
-            copyto!(view(B, ord, strt:stop), C)
-        else
-            copyto!(view(B, strt:stop, ord), C)
-        end
+        st_sp_smul_impl!(symb, Rptr, Rval, Lptr, Lval, Bb, tA, tB, uplo, side)
     end
 
-    return
+    return B
 end
 
 function sp_slu_copy_R!(
@@ -558,17 +550,17 @@ function sp_slu_loop!(
         #
         #   B₂₁ ← B₂₁ U₁₁*
         #   
-        smul_impl!(B₁₁, B₂₁, Val(:N), Val(:U), Val(:R))
+        smul_impl!(B₁₁, B₂₁, Val(:N), Val(:N), Val(:U), Val(:R))
 
         #
         #   B₁₂ ← L₁₁* B₁₂
         #   
-        smul_impl!(B₁₁, B₁₂, Val(:N), Val(:L), Val(:L))
+        smul_impl!(B₁₁, B₁₂, Val(:N), Val(:N), Val(:L), Val(:L))
 
         #
-        #   B₂₂ ← B₂₂ + B₂₁ B₁₂
+        #   B₂₂ ← B₂₁ B₁₂ + B₂₂
         #
-        mul_impl!(B₂₂, B₂₁, B₁₂, Val(:N), Val(:N))
+        mul_add_impl!(B₂₁, B₁₂, B₂₂, Val(:N), Val(:N), Val(:N))
     end
  
     return ns
@@ -582,26 +574,29 @@ function sp_smul_impl!(
         Rval::AbstractVector{T},
         Lptr::AbstractVector{I},
         Lval::AbstractVector{T},
-        Uval::AbstractVector{T},
         Fval::AbstractVector{T},
         res::AbstractGraph{I},
         rel::AbstractGraph{I}, 
         chd::AbstractGraph{I},
-        tA::Val,
-        side::Val,
-    ) where {T, I <: Integer}
+        tA::Val{R},
+        tB::Val{:N},
+        uplo::Val{Q},
+        side::Val{S},
+    ) where {T, I <: Integer, Q, R, S}
     ns = zero(I); Mptr[one(I)] = one(I)
 
-    # forward substitution loop
-    for j in vertices(res)
-        ns = sp_smul_fwd_loop!(C, Mptr, Mval, Rptr, Rval, Lptr,
-            Lval, Uval, Fval, res, rel, chd, ns, j, tA, side)
-    end
-
-    # backward substitution loop
-    for j in reverse(vertices(res))
-        ns = sp_smul_bwd_loop!(C, Mptr, Mval, Rptr, Rval, Lptr,
-            Lval, Uval, Fval, res, rel, chd, ns, j, tA, side)
+    if Q == :L && (R == :N && S == :L || R == :C && S == :R) || Q == :U && (R == :N && S == :R || R == :C && S == :L)
+        # forward substitution loop
+        for j in vertices(res)
+            ns = sp_smul_fwd_loop!(C, Mptr, Mval, Rptr, Rval, Lptr,
+                Lval, Fval, res, rel, chd, ns, j, tA, tB, side)
+        end
+    else
+        # backward substitution loop
+        for j in reverse(vertices(res))
+            ns = sp_smul_bwd_loop!(C, Mptr, Mval, Rptr, Rval, Lptr,
+                Lval, Fval, res, rel, chd, ns, j, tA, tB, side)
+        end
     end
 
     return
@@ -615,7 +610,6 @@ function sp_smul_fwd_loop!(
         Rval::AbstractVector{T},
         Lptr::AbstractVector{I},
         Lval::AbstractVector{T},
-        Uval::AbstractVector{T},
         Fval::AbstractVector{T},
         res::AbstractGraph{I},
         rel::AbstractGraph{I}, 
@@ -623,6 +617,7 @@ function sp_smul_fwd_loop!(
         ns::I,
         j::I,
         tA::Val{R},
+        tB::Val{:N},
         side::Val{S},
     ) where {T, I, R, S}
     #
@@ -692,7 +687,7 @@ function sp_smul_fwd_loop!(
     if R == :N && S == :L || R == :C && S == :R
         B₂₁ = reshape(view(Lval, Lp:Lp + nn * na - one(I)), na, nn)
     else
-        B₂₁ = reshape(view(Uval, Lp:Lp + nn * na - one(I)), nn, na)
+        B₂₁ = reshape(view(Lval, Lp:Lp + nn * na - one(I)), nn, na)
     end
 
     # C₁ is part of the right-hand side
@@ -716,11 +711,7 @@ function sp_smul_fwd_loop!(
     #
     #   F₂ ← 0
     #
-    if R == :N
-        fill!(F₂, zero(T))
-    else
-        fill!(F₂, typemax(T))
-    end
+    fill!(F₂, zero_impl(T, tA))
 
     for i in Iterators.reverse(neighbors(chd, j))
         sp_smul_fwd_update!(F, Mptr, Mval, rel, ns, i, tA, side)
@@ -736,9 +727,9 @@ function sp_smul_fwd_loop!(
     #   C₁ ← B₁₁* C₁
     #
     if R == :N && S == :L || R == :C && S == :R
-        smul_impl!(B₁₁, C₁, tA, Val(:L), side)
+        smul_impl!(B₁₁, C₁, tA, tB, Val(:L), side)
     else
-        smul_impl!(B₁₁, C₁, tA, Val(:U), side)
+        smul_impl!(B₁₁, C₁, tA, tB, Val(:U), side)
     end
 
     if ispositive(na)
@@ -760,12 +751,12 @@ function sp_smul_fwd_loop!(
         #
         copyto!(C₂, F₂)
         #
-        #   C₂ ← C₂ + B₂₁ C₁
+        #   C₂ ← B₂₁ C₁ + C₂
         #
         if S == :L
-            mul_impl!(C₂, B₂₁, C₁, tA, Val(:N))
+            mul_add_impl!(B₂₁, C₁, C₂, tA, tB, tA)
         else
-            mul_impl!(C₂, C₁, B₂₁, Val(:N), tA)
+            mul_add_impl!(C₁, B₂₁, C₂, tB, tA, tA)
         end
     end
 
@@ -780,7 +771,6 @@ function sp_smul_bwd_loop!(
         Rval::AbstractVector{T},
         Lptr::AbstractVector{I},
         Lval::AbstractVector{T},
-        Uval::AbstractVector{T},
         Fval::AbstractVector{T},
         res::AbstractGraph{I},
         rel::AbstractGraph{I}, 
@@ -788,6 +778,7 @@ function sp_smul_bwd_loop!(
         ns::I,
         j::I,
         tA::Val{R},
+        tB::Val{:N},
         side::Val{S},
     ) where {T, I <: Integer, R, S}
     #
@@ -854,7 +845,7 @@ function sp_smul_bwd_loop!(
     B₁₁ = reshape(view(Rval, Rp:Rp + nn * nn - one(I)), nn, nn)
 
     if R == :N && S == :L || R == :C && S == :R
-        B₁₂ = reshape(view(Uval, Lp:Lp + nn * na - one(I)), nn, na)
+        B₁₂ = reshape(view(Lval, Lp:Lp + nn * na - one(I)), nn, na)
     else
         B₁₂ = reshape(view(Lval, Lp:Lp + nn * na - one(I)), na, nn)
     end
@@ -886,12 +877,12 @@ function sp_smul_bwd_loop!(
 
         ns -= one(I)
         #
-        #   C₁ ← C₁ + B₁₂ C₂
+        #   C₁ ← B₁₂ C₂ + C₁
         #
         if S == :L
-            mul_impl!(C₁, B₁₂, C₂, tA, Val(:N))
+            mul_add_impl!(B₁₂, C₂, C₁, tA, tB, tA)
         else
-            mul_impl!(C₁, C₂, B₁₂, Val(:N), tA)
+            mul_add_impl!(C₂, B₁₂, C₁, tB, tA, tA)
         end
         #
         #   F₂ ← M₂
@@ -903,9 +894,9 @@ function sp_smul_bwd_loop!(
     #   C₁ ← B₁₁* C₁
     #
     if R == :N && S == :L || R == :C && S == :R
-        smul_impl!(B₁₁, C₁, tA, Val(:U), side)
+        smul_impl!(B₁₁, C₁, tA, tB, Val(:U), side)
     else
-        smul_impl!(B₁₁, C₁, tA, Val(:L), side)
+        smul_impl!(B₁₁, C₁, tA, tB, Val(:L), side)
     end
 
     # copy C into F
@@ -967,9 +958,9 @@ function sp_smul_fwd_update!(
         rel::AbstractGraph{I},
         ns::I,
         i::I,
-        tA::Val{R},
+        tA::Val,
         side::Val{S},
-    ) where {T, I <: Integer, R, S}
+    ) where {T, I <: Integer, S}
     #
     #   nrhs is the number of columns in F
     #
@@ -1009,30 +1000,18 @@ function sp_smul_fwd_update!(
     #
     if F isa AbstractVector
         @inbounds for v in oneto(na)
-            if R == :N
-                F[inj[v]] += C[v]
-            else
-                F[inj[v]] = inf(F[inj[v]], C[v])
-            end
+            F[inj[v]] = add_impl(F[inj[v]], C[v], tA)
         end
     elseif S == :L
         @inbounds for w in oneto(nrhs), v in oneto(na)
-            if R == :N
-                F[inj[v], w] += C[v, w]
-            else
-                F[inj[v], w] = inf(F[inj[v], w], C[v, w])
-            end
+            F[inj[v], w] = add_impl(F[inj[v], w], C[v, w], tA)
         end
     else
         @inbounds for v in oneto(na)
             iv = inj[v]
 
             for w in oneto(nrhs)
-                if R == :N
-                    F[w, iv] += C[w, v]
-                else
-                    F[w, iv] = inf(F[w, iv], C[w, v])
-                end
+                F[w, iv] = add_impl(F[w, iv], C[w, v], tA)
             end
         end
     end
@@ -1112,7 +1091,47 @@ end
 # Matrix Multiplication #
 # --------------------- #
 
-function mul_impl!(C::AbstractVector, A::AbstractMatrix, B::SparseColumnCSC, tA::Val{:N}, tB::Val)
+function Semirings.mul_add_impl(A::SparseColumnCSC, B::AbstractVector, C::Number, tA::Val{R}, tB::Val{:N}, dual::Val{R}) where {R}
+    @assert length(A) == length(B)
+    #
+    #   A = Dj
+    #
+    D, j = unpack(A)
+    #
+    #   C ← C + A B
+    #
+    @inbounds for p in nzrange(D, j)
+        Bi = B[rowvals(D)[p]]
+        #
+        #   C ← C + Ai Bi
+        #
+        C = mul_add_impl(nonzeros(D)[p], Bi, C, tA, tB, dual)
+    end
+
+    return C
+end
+
+function Semirings.mul_add_impl(A::AbstractVector, B::SparseColumnCSC, C::Number, tA::Val{:N}, tB::Val{R}, dual::Val{R}) where {R}
+    @assert length(A) == length(B)
+    #
+    #   B = Dj
+    #
+    D, j = unpack(B)
+    #
+    #   C ← C + A B
+    #
+    @inbounds for p in nzrange(D, j)
+        Ai = A[rowvals(D)[p]]
+        #
+        #   C ← C + Ai Bi
+        #
+        C = mul_add_impl(Ai, nonzeros(D)[p], C, tA, tB, dual)
+    end
+
+    return C
+end
+
+function mul_add_impl!(A::AbstractMatrix, B::SparseColumnCSC, C::AbstractVector, tA::Val{:N}, tB::Val{R}, dual::Val{R}) where {R}
     @assert length(C) == size(A, 1)
     @assert length(B) == size(A, 2)
     #
@@ -1125,15 +1144,15 @@ function mul_impl!(C::AbstractVector, A::AbstractMatrix, B::SparseColumnCSC, tA:
     @inbounds for p in nzrange(D, j)
         Ai = @view A[:, rowvals(D)[p]]
         #   
-        #   C ← C + Ai Bi
+        #   C ← Ai Bi + C
         #
-         mul_impl!(C, Ai, nonzeros(D)[p], tA, tB)
+         mul_add_impl!(Ai, nonzeros(D)[p], C, tA, tB, dual)
     end
 
-    return
+    return C
 end
 
-function mul_impl!(C::AbstractMatrix, A::AbstractVector, B::SparseColumnCSC, tA::Val{:N}, tB::Val)
+function mul_add_impl!(A::AbstractVector, B::SparseColumnCSC, C::AbstractMatrix, tA::Val{:N}, tB::Val{R}, dual::Val{R}) where {R}
     @assert size(C, 1) == length(A)
     @assert size(C, 2) == length(B)
     #
@@ -1146,15 +1165,15 @@ function mul_impl!(C::AbstractMatrix, A::AbstractVector, B::SparseColumnCSC, tA:
     @inbounds for p in nzrange(D, j)
         Ci = @view C[:, rowvals(D)[p]]
         #   
-        #   Ci ← Ci + A Bi
+        #   Ci ← A Bi + Ci
         #   
-        mul_impl!(Ci, A, nonzeros(D)[p], tA, tB)
+        mul_add_impl!(A, nonzeros(D)[p], Ci, tA, tB, dual)
     end
 
-    return
+    return C
 end
 
-function mul_impl!(C::AbstractVector{T}, A::T, B::SparseColumnCSC{T}, tA::Val{:N}, tB::Val) where {T}
+function mul_add_impl!(A::Number, B::SparseColumnCSC, C::AbstractVector, tA::Val{:N}, tB::Val{R}, dual::Val{R}) where {R}
     @assert length(C) == length(B)
     #
     #   B = Dj
@@ -1166,15 +1185,15 @@ function mul_impl!(C::AbstractVector{T}, A::T, B::SparseColumnCSC{T}, tA::Val{:N
     @inbounds for p in nzrange(D, j)
         Ci = @view C[rowvals(D)[p]]
         #
-        #   Ci ← Ci + Ai B
+        #   Ci ← Ai B + Ci
         #
-        mul_impl!(Ci, A, nonzeros(D)[p], tA, tB)
+        mul_add_impl!(A, nonzeros(D)[p], Ci, tA, tB, dual)
     end
 
-    return
+    return C
 end
 
-function mul_impl!(C::AbstractVector{T}, A::SparseColumnCSC{T}, B::T, tA::Val, tB::Val{:N}) where {T}
+function mul_add_impl!(A::SparseColumnCSC, B::Number, C::AbstractVector, tA::Val{R}, tB::Val{:N}, dual::Val{R}) where {R}
     @assert length(C) == length(A)
     #
     #   A = Dj
@@ -1186,89 +1205,9 @@ function mul_impl!(C::AbstractVector{T}, A::SparseColumnCSC{T}, B::T, tA::Val, t
     @inbounds for p in nzrange(D, j)
         Ci = @view C[rowvals(D)[p]]
         #
-        #   Ci ← Ci + Ai B
+        #   Ci ← Ai B + Ci
         #
-        mul_impl!(Ci, nonzeros(D)[p], B, tA, tB)
-    end
-
-    return
-end
-
-function Semirings.fma(A::SparseColumnCSC{T}, B::AbstractVector{T}, C::T) where {T}
-    @assert length(A) == length(B)
-    #
-    #   A = Dj
-    #
-    D, j = unpack(A)
-    #
-    #   C ← C + A B
-    #
-    @inbounds for p in nzrange(D, j)
-        Bi = B[rowvals(D)[p]]
-        #
-        #   C ← C + Ai Bi
-        #
-        C = fma(nonzeros(D)[p], Bi, C)
-    end
-
-    return C
-end
-
-function Semirings.fma(A::AbstractVector{T}, B::SparseColumnCSC{T}, C::T) where {T}
-    @assert length(A) == length(B)
-    #
-    #   B = Dj
-    #
-    D, j = unpack(B)
-    #
-    #   C ← C + A B
-    #
-    @inbounds for p in nzrange(D, j)
-        Ai = A[rowvals(D)[p]]
-        #
-        #   C ← C + Ai Bi
-        #
-        C = fma(Ai, nonzeros(D)[p], C)
-    end
-
-    return C
-end
-
-function Semirings.fli(A::SparseColumnCSC{T}, B::AbstractVector{T}, C::T) where {T}
-    @assert length(A) == length(B)
-    #
-    #   A = Dj
-    #
-    D, j = unpack(A)
-    #
-    #   C ← C ∧ A \ B
-    #
-    @inbounds for p in nzrange(D, j)
-        Bi = B[rowvals(D)[p]]
-        #
-        #   C ← C ∧ Ai \ Bi
-        #
-        C = fli(nonzeros(D)[p], Bi, C)
-    end
-
-    return C
-end
-
-function Semirings.fri(A::AbstractVector{T}, B::SparseColumnCSC{T}, C::T) where {T}
-    @assert length(A) == length(B)
-    #
-    #   B = Dj
-    #
-    D, j = unpack(B)
-    #
-    #   C ← C ∧ A / B
-    #
-    @inbounds for p in nzrange(D, j)
-        Ai = A[rowvals(D)[p]]
-        #
-        #   C ← C ∧ Ai / Bi
-        #
-        C = fri(Ai, nonzeros(D)[p], C)
+        mul_add_impl!(nonzeros(D)[p], B, Ci, tA, tB, dual)
     end
 
     return C
@@ -1278,7 +1217,7 @@ end
 # Infimum #
 # ------- #
 
-function Semirings.inf(A::SparseMatrixCSC{T, I}, B::SparseMatrixCSC{T, I}) where {T, I}
+function Semirings.add_impl(A::SparseMatrixCSC{T, I}, B::SparseMatrixCSC{T, I}, dual::Val{:C}) where {T, I}
     @assert size(A) == size(B)
 
     m, n = size(A)
@@ -1313,7 +1252,7 @@ function Semirings.inf(A::SparseMatrixCSC{T, I}, B::SparseMatrixCSC{T, I}) where
                 c += one(I)
 
                 rowvals(C)[c] = ai
-                nonzeros(C)[c] = ax ∧ bx
+                nonzeros(C)[c] = ax & bx
             end
         end
     end

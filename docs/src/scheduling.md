@@ -42,7 +42,7 @@ A[j,i] = d[i] + ℓ_ij if i → j, else -Inf
 l = Max64[1, 0, 2, 1, 0, 2, 1, 0, 3, 2]
 I = [3, 3, 4, 5, 5, 6, 7, 8, 7, 6]
 J = [1, 2, 2, 3, 4, 5, 6, 7, 3, 1]
-A = sparse(I, J, d[J] + l, 8, 8)
+A = sparse(I, J, d[J] .* l, 8, 8)
 ````
 
 Release Times: these are the time it takes to start a given task meaning that for example task 1 can start at time = 0
@@ -68,7 +68,7 @@ x = S * b
 Finish times y = x + d
 
 ````@example scheduling
-y = x + d
+y = x .* d
 ````
 
 Max completion
@@ -130,7 +130,7 @@ A[j,i] = d[i] + ℓ_ij if i → j, else -Inf
 l = Min64[1, 0, 2, 1, 0, 2, 1, 0, 3, 2]
 I = [3, 3, 4, 5, 5, 6, 7, 8, 7, 6]
 J = [1, 2, 2, 3, 4, 5, 6, 7, 3, 1]
-A = sparse(I, J, d[J] + l, 8, 8)
+A = sparse(I, J, d[J] .* l, 8, 8)
 ````
 
 Release Times: these are the time it takes to start a given task meaning that for example task 1 can start at time = 0
@@ -156,7 +156,7 @@ x = S * b
 Finish times y = x + d
 
 ````@example scheduling
-y = x + d
+y = x .* d
 ````
 
 Min completion
@@ -192,7 +192,7 @@ y
 Minimum Cost
 
 ````@example scheduling
-Cmin = sum(y)
+Cmin = infimum(y)
 ````
 
 ---

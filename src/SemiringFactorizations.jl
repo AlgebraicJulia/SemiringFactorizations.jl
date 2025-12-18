@@ -19,7 +19,6 @@ include("Semirings.jl/src/Semirings.jl")
 
 using .Semirings
 using .Semirings: NativeTypes
-import .Semirings: fma
 
 const DEFAULT_BLOCK_SIZE = 32
 const SparseColumnCSC{T, I} = SubArray{T, 1, SparseMatrixCSC{T, I}, Tuple{Slice{OneTo{Int}}, Int}, false}
@@ -37,16 +36,24 @@ function wrapcopy(::Type{T}, A::Transpose) where {T}
     return transpose(wrapcopy(T, parent(A)))
 end
 
-export SemiringNumber, AndOr, OrAnd, AndOrRel, OrAndRel, MaxMin, MinMax, LCMMul, GCDMul, GCDMulPos, MaxMul, MinMul, MaxPlus, MinPlus, MaxPlusPos, MinPlusPos, MaxLSE, MinLSE, MaxGod, MinGod, MaxGog, MinGog, MaxLuk, MinLuk, MaxFod, MinFod, Chain
+function unrow(A::AbstractMatrix)
+    return A
+end
+
+function unrow(A::AbstractRowVector)
+    return parent(A)
+end
+
+export SemiringNumber, AndOr, OrAnd, MaxPlus, MinPlus, MaxMul, MinMul, ⋉, ⋊, ⅋
 export StrictLowerTriangular
-export StarLU, star, slu, slmul, srmul, sldiv, srdiv, inf, fli, fri, ∧
+export StarLU, StarTriangular, star, slu
 export SymbolicStarLU
-export SparseStarLU
+export SparseStarLU, SparseStarTriangular
 
 include("strict_lower_triangular.jl")
-include("array.jl")
-include("dense.jl")
-include("symbolic.jl")
-include("sparse.jl")
+include("abstract_star_lu.jl")
+include("star_lu.jl")
+include("symbolic_star_lu.jl")
+include("sparse_star_lu.jl")
 
 end

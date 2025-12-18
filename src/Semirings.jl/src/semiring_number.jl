@@ -4,8 +4,6 @@ struct SemiringNumber{A <: AbstractSemiring, T} <: AbstractSemiringNumber{T}
     num::T
 end
 
-const QuantaleNumber = SemiringNumber{<:AbstractQuantale}
-
 function SemiringNumber{A}(num::T) where {A <: AbstractSemiring, T}
     return SemiringNumber{A, T}(num)
 end
@@ -31,39 +29,141 @@ function Base.show(io::IO, a::SemiringNumber)
     return
 end
 
-function Base.isapprox(a::SemiringNumber{A}, b::SemiringNumber{A}; kw...) where {A <: AbstractSemiring}
-    return isapprox(parent(a), parent(b); kw...)
-end
-
-function Base.isapprox(a::SemiringNumber{A, <:Tuple}, b::SemiringNumber{A, <:Tuple}; kw...) where {A <: AbstractSemiring}
-    return all(isapprox.(parent(a), parent(b); kw...))
-end
-
-function Base.isapprox(a::AbstractArray{<:SemiringNumber{A}}, b::AbstractArray{<:SemiringNumber{A}}; kw...) where {A <: AbstractSemiring}
-    return all(isapprox.(a, b; kw...))
-end
-
 function Base.promote_rule(::Type{SemiringNumber{A, T}}, ::Type{SemiringNumber{A, U}}) where {A <: AbstractSemiring, T, U}
     V = promote_rule(T, U)
     return SemiringNumber{A, V}
 end
 
-# --------- #
-# Semirings #
-# --------- #
+#
+#
+#
 
-function Base.zero(::Type{SemiringNumber{A, T}}) where {A <: AbstractSemiring, T}
-    num = zero_impl(A, T)
+function zero_impl(::Type{T}, dual::Val) where {T <: Number}
+    return zero(T)
+end
+
+function zero_impl(::Type{SemiringNumber{A, T}}, dual::Val) where {A <: AbstractSemiring, T}
+    num = zero_impl(A, T, dual)
     return SemiringNumber{A}(num)
+end
+
+function one_impl(::Type{T}, dual::Val) where {T <: Number}
+    return one(T)
+end
+
+function one_impl(::Type{SemiringNumber{A, T}}, dual::Val) where {A <: AbstractSemiring, T}
+    num = one_impl(A, T, dual)
+    return SemiringNumber{A}(num)
+end
+
+function star_impl(a::T) where {T <: Number}
+    return inv(one(T) - a)
+end
+
+function star_impl(a::SemiringNumber{A}) where {A <: AbstractSemiring}
+    num = star_impl(A, parent(a))
+    return SemiringNumber{A}(num)
+end
+
+function id_impl(a::SemiringNumber{A}, dual::Val) where {A <: AbstractSemiring}
+    num = id_impl(A, parent(a), dual)
+    return SemiringNumber{A}(num)
+end
+
+function add_impl(a::Number, b::Number, dual::Val)
+    return add_impl(promote(a, b)..., dual)
+end
+
+function add_impl(a::T, b::T, dual::Val) where {T <: Number}
+    return a + b
+end
+
+function add_impl(a::T, b::T, dual::Val) where {A <: AbstractSemiring, T <: SemiringNumber{A}}
+    num = add_impl(A, parent(a), parent(b), dual)
+    return SemiringNumber{A}(num)
+end
+
+function add_impl(a::StaticInt{0}, b::SemiringNumber, dual::Val{:N})
+    return b
+end
+
+function add_impl(a::SemiringNumber, b::StaticInt{0}, dual::Val{:N})
+    return a
+end
+
+function mul_impl(a::Number, b::Number, ta::Val, tb::Val, dual::Val)
+    return mul_impl(promote(a, b)..., ta, tb, dual)
+end
+
+function mul_impl(a::T, b::T, ta::Val, tb::Val, dual::Val) where {T <: Number}
+    return a * b
+end
+
+function mul_impl(a::T, b::T, ta::Val, tb::Val, dual::Val) where {A <: AbstractSemiring, T <: SemiringNumber{A}}
+    num = mul_impl(A, parent(a), parent(b), ta, tb, dual)
+    return SemiringNumber{A}(num)
+end
+
+function mul_impl(a::StaticInt{0}, b::T, ta::Val{R}, tb::Val, dual::Val{R}) where {T <: SemiringNumber, R}
+    return zero_impl(T, ta)
+end
+
+function mul_impl(a::T, b::StaticInt{0}, ta::Val, tb::Val{R}, dual::Val{R}) where {T <: SemiringNumber, R}
+    return zero_impl(T, tb)
+end
+
+function mul_impl(a::StaticInt{1}, b::SemiringNumber, ta::Val{R}, tb::Val, dual::Val{R}) where {R}
+    return id_impl(b, tb)
+end
+
+function mul_impl(a::SemiringNumber, b::StaticInt{1}, ta::Val, tb::Val{R}, dual::Val{R}) where {R}
+    return id_impl(a, ta)
+end
+
+function mul_add_impl(a::Number, b::Number, c::Number, ta::Val, tb::Val, dual::Val)
+    return mul_add_impl(promote(a, b, c)..., ta, tb, dual)
+end
+
+function mul_add_impl(a::Union{StaticInt, T}, b::T, c::T, ta::Val, tb::Val, dual::Val) where {T <: Number}
+    return add_impl(mul_impl(a, b, ta, tb, dual), dual)
+end
+
+function mul_add_impl(a::T, b::T, c::T, ta::Val, tb::Val, dual::Val) where {T <: Union{Float16, Float32, Float64, BigFloat, Integer, Rational}}
+    return Base.fma(a, b, c)
+end
+
+function mul_add_impl(a::T, b::T, c::T, ta::Val, tb::Val, dual::Val) where {A <: AbstractSemiring, T <: SemiringNumber{A}}
+    num = mul_add_impl(A, parent(a), parent(b), parent(c), ta, tb, dual)
+    return SemiringNumber{A}(num)
+end
+
+function smul_impl(a::Number, b::Number, ta::Val, tb::Val, side::Val)
+    return smul_impl(promote(a, b)..., ta, tb, side)
+end
+
+function smul_impl(a::T, b::T, ta::Val, tb::Val, side::Val) where {T <: Number}
+    return b / (one(T) - a)
+end
+
+function smul_impl(a::T, b::T, ta::Val, tb::Val, side::Val) where {A <: AbstractSemiring, T <: SemiringNumber{A}}
+    num = smul_impl(A, parent(a), parent(b), ta, tb, side)
+    return SemiringNumber{A}(num)
+end
+
+#
+#
+#
+
+function Base.zero(::Type{T}) where {T <: SemiringNumber}
+    return zero_impl(T, Val(:N))
 end
 
 function Base.zero(::T) where {T <: SemiringNumber}
     return zero(T)
 end
 
-function Base.one(::Type{SemiringNumber{A, T}}) where {A <: AbstractSemiring, T}
-    num = one_impl(A, T)
-    return SemiringNumber{A}(num)
+function Base.one(::Type{T}) where {T <: SemiringNumber}
+    return one_impl(T, Val(:N))
 end
 
 function Base.one(::T) where {T <: SemiringNumber}
@@ -87,44 +187,24 @@ equation
     x = a x + 1.
 ```
 """
-star(a)
-
-function star(a::Missing)
-    return missing
+function star(a)
+    return star_impl(a)
 end
 
-function star(a::T) where {T <: Number}
-    ϵ = one(T)
-    return ϵ / (ϵ - a)
+function Base.conj(a::SemiringNumber)
+    return id_impl(a, Val(:C))
 end
 
-function star(a::T) where {T <: Rational}
-    ϵ = one(T)
-    return ifelse(isinf(a), a, ϵ / (ϵ - a))
+function Base.:+(a::SemiringNumber, b::SemiringNumber)
+    return add_impl(a, b, Val(:N))
 end
 
-function star(a::SemiringNumber{A}) where {A <: AbstractSemiring}
-    num = star_impl(A, parent(a))
-    return SemiringNumber{A}(num)
+function Base.:+(a::StaticInt, b::SemiringNumber)
+    return add_impl(a, b, Val(:N))
 end
 
-function Base.:+(a::SemiringNumber{A, T}, b::SemiringNumber{A, T}) where {A <: AbstractSemiring, T}
-    num = add_impl(A, parent(a), parent(b))
-    return SemiringNumber{A}(num)
-end
-
-#
-#   0 + b = b
-#
-function Base.:+(a::StaticInt{0}, b::SemiringNumber)
-    return b
-end
-
-#
-#   a + 0 = a
-#
-function Base.:+(a::SemiringNumber, b::StaticInt{0})
-    return a
+function Base.:+(a::SemiringNumber, b::StaticInt)
+    return add_impl(a, b, Val(:N))
 end
 
 function Base.FastMath.add_fast(a::SemiringNumber, b::StaticInt)
@@ -135,37 +215,16 @@ function Base.FastMath.add_fast(a::StaticInt, b::SemiringNumber)
     return a + b
 end
 
-function Base.:*(a::SemiringNumber{A, T}, b::SemiringNumber{A, T}) where {A <: AbstractSemiring, T}
-    num = mul_impl(A, parent(a), parent(b))
-    return SemiringNumber{A}(num)
+function Base.:*(a::SemiringNumber, b::SemiringNumber)
+    return mul_impl(a, b, Val(:N), Val(:N), Val(:N))
 end
 
-#
-#   0b = 0
-#
-function Base.:*(a::StaticInt{0}, b::T) where {T <: SemiringNumber}
-    return zero(T)
+function Base.:*(a::StaticInt, b::SemiringNumber)
+    return mul_impl(a, b, Val(:N), Val(:N), Val(:N))
 end
 
-#
-#   a0 = 0
-#
-function Base.:*(a::T, b::StaticInt{0}) where {T <: SemiringNumber}
-    return zero(T)
-end
-
-#
-#   1b = b
-#
-function Base.:*(a::StaticInt{1}, b::SemiringNumber)
-    return b
-end
-
-#
-#   a1 = a
-#
-function Base.:*(a::SemiringNumber, b::StaticInt{1})
-    return a
+function Base.:*(a::SemiringNumber, b::StaticInt)
+    return mul_impl(a, b, Val(:N), Val(:N), Val(:N))
 end
 
 function Base.FastMath.mul_fast(a::StaticInt, b::SemiringNumber)
@@ -176,139 +235,36 @@ function Base.FastMath.mul_fast(a::SemiringNumber, b::StaticInt)
     return a * b
 end
 
-"""
-    slmul(a, b)
-
-Compute the product ``a^* b``, equal to the
-infinite sum
-
-```math
-    a^* b = b + ab + a^2b + \\cdots
-``` 
-
-``a^* b`` is also the least solution to the
-fixed-point equation
-
-```math
-    x = ax + b.
-```
-"""
-slmul(a, b)
-
-function slmul(a::Number, b::Missing)
-    return missing
-end
-
-function slmul(a::Number, b::Number)
-    return slmul(promote(a, b)...)
-end
-
-function slmul(a::T, b::T) where {T <: Number}
-    ϵ = one(T)
-    return b / (ϵ - a)
-end
-
-function slmul(a::T, b::T) where {T <: Rational}
-    ϵ = one(T)
-    return ifelse(isinf(a) | isinf(b), b, b / (ϵ - a)) 
-end
-
-function slmul(a::SemiringNumber{A, T}, b::SemiringNumber{A, T}) where {A, T}
-    num = slmul_impl(A, parent(a), parent(b))
-    return SemiringNumber{A}(num)    
-end
-
-"""
-    srmul(b, a)
-
-Compute the product ``b a^*``, equal to the
-infinite sum
-
-```math
-    b a^* = b + ba + ba^2 + \\cdots
-```
-
-``b a^*`` is also the least solution to the
-fixed-point equation
-
-```math
-    x = xa + b.
-```
-"""
-srmul(b, a)
-
-function srmul(b::Missing, a::Number)
-    return missing
-end
-
-function srmul(b::Number, a::Number)
-    return srmul(promote(b, a)...)
-end
-
-function srmul(b::T, a::T) where {T <: Number}
-    return slmul(a, b)
-end
-
-function srmul(b::SemiringNumber{A, T}, a::SemiringNumber{A, T}) where {A, T}
-    num = srmul_impl(A, parent(b), parent(a))
-    return SemiringNumber{A}(num)    
-end
-
-"""
-    fma(a, b, c)
-
-Compute the sum ``ab + c``.
-"""
-fma(a, b, c)
-
-function fma(a::Number, b::Number, c::Number)
-    return fma(promote(a, b, c)...)
-end
-
-function fma(a::T, b::T, c::T) where {T <: Number}
-    return Base.fma(a, b, c)
-end
-
-function fma(a::T, b::T, c::T) where {T <: Complex}
-    return (a * b) + c
-end
-
-function Base.fma(a::SemiringNumber{A, T}, b::SemiringNumber{A, T}, c::SemiringNumber{A, T}) where {A <: AbstractSemiring, T}
-    num = mul_add_impl(A, parent(a), parent(b), parent(c))
-    return SemiringNumber{A}(num)
-end
-
-function Base.fma(a::StaticInt, b::SemiringNumber{A, T}, c::SemiringNumber{A, T}) where {A <: AbstractSemiring, T}
-    return (a * b) + c
+function Base.fma(a::Union{StaticInt, SemiringNumber}, b::SemiringNumber, c::SemiringNumber)
+    return mul_add_impl(a, b, c, Val(:N), Val(:N), Val(:N))
 end
 
 function Base.:(==)(a::SemiringNumber{A}, b::SemiringNumber{A}) where {A <: AbstractSemiring}
     return parent(a) == parent(b)
 end
 
-# --------- #
-# Quantales #
-# --------- #
+function Base.isapprox(a::SemiringNumber{A}, b::SemiringNumber{A}; kw...) where {A <: AbstractSemiring}
+    return isapprox(parent(a), parent(b); kw...)
+end
 
-function Base.typemin(::Type{T}) where {T <: QuantaleNumber}
+function Base.typemin(::Type{T}) where {T <: SemiringNumber}
     return zero(T)
 end
 
-function Base.typemin(::T) where {T <: QuantaleNumber}
+function Base.typemin(::T) where {T <: SemiringNumber}
     return typemin(T)
 end
 
-function Base.typemax(::Type{SemiringNumber{A, T}}) where {A <: AbstractQuantale, T}
-    num = typemax_impl(A, T)
-    return SemiringNumber{A}(num)
+function Base.typemax(::Type{T}) where {T <: SemiringNumber}
+    return zero_impl(T, Val(:C))
 end
 
-function Base.typemax(::T) where {T <: QuantaleNumber}
+function Base.typemax(::T) where {T <: SemiringNumber}
     return typemax(T)
 end
 
 """
-    inf(a, b)
+    &(a, b)
 
 Compute the infimum ``a \\wedge b``, i.e.
 the greatest solution ``x`` to the equation
@@ -317,19 +273,12 @@ the greatest solution ``x`` to the equation
     x \\leq a \\text{and} x \\leq b.
 ```
 """
-inf(a, b)
-
-function inf(a::Number, b::Number)
-    return inf(promote(a, b)...) 
+function Base.:&(a::Union{SemiringNumber, AbstractArray{<:SemiringNumber}}, b::Union{SemiringNumber, AbstractArray{<:SemiringNumber}})
+    return add_impl(a, b, Val(:C))
 end
 
-function inf(a::T, b::T) where {T <: Number}
-    return min(a, b)
-end
-
-function inf(a::SemiringNumber{A, T}, b::SemiringNumber{A, T}) where {A <: AbstractQuantale, T}
-    num = inf_impl(A, parent(a), parent(b))
-    return SemiringNumber{A}(num)
+function ⅋(a, b)
+    return mul_impl(a, b, Val(:N), Val(:N), Val(:C))
 end
 
 """
@@ -342,9 +291,24 @@ the greatest solution ``x`` to the equation
     ax \\leq b.
 ```
 """
-function Base.:\(a::SemiringNumber{A, T}, b::SemiringNumber{A, T}) where {A <: AbstractQuantale, T}
-    num = ldiv_impl(A, parent(a), parent(b))
-    return SemiringNumber{A}(num)
+function Base.:\(a::SemiringNumber, b::SemiringNumber)
+    return mul_impl(a, b, Val(:C), Val(:N), Val(:C))
+end
+
+function Base.:\(a::AbstractMatrix{<:SemiringNumber}, b::AbstractVecOrMat{<:SemiringNumber})
+    return mul_impl(a, b, Val(:C), Val(:N), Val(:C))
+end
+
+function Base.:\(a::AbstractVector{<:SemiringNumber}, b::AbstractVecOrMat{<:SemiringNumber})
+    return mul_impl(a, b, Val(:C), Val(:N), Val(:C))
+end
+
+function Base.:\(a::SparseMatrixCSC{<:SemiringNumber}, b::AbstractMatrix{<:SemiringNumber})
+    return mul_impl(a, b, Val(:C), Val(:N), Val(:C))
+end
+
+function Base.:\(a::SparseMatrixCSC{<:SemiringNumber}, b::AbstractVector{<:SemiringNumber})
+    return mul_impl(a, b, Val(:C), Val(:N), Val(:C))
 end
 
 """
@@ -357,120 +321,26 @@ the greatest solution ``x`` to the equation
     xa \\leq b.
 ```
 """
-function Base.:/(b::SemiringNumber{A, T}, a::SemiringNumber{A, T}) where {A <: AbstractQuantale, T}
-    num = rdiv_impl(A, parent(b), parent(a))
-    return SemiringNumber{A}(num)
+function Base.:/(b::SemiringNumber, a::SemiringNumber)
+    return mul_impl(b, a, Val(:N), Val(:C), Val(:C))
 end
 
-"""
-    sldiv(a, b)
-
-Compute the residual ``a^* \\ b``, equal to the
-infinite infimum
-
-```math
-    b \\wedge a \\ b \\wedge a^2 \\ b \\wedge \\cdots
-```
-
-``a^* \\ b`` is also the greatest solution to the
-fixed-point equation
-
-```math
-    x = a \\ x \\wedge b.
-```
-"""
-sldiv(a, b)
-
-function sldiv(a::Number, b::Number)
-    return sldiv(promote(a, b)...)
+function Base.:/(b::AbstractVecOrMat{<:SemiringNumber}, a::AbstractVecOrMat{<:SemiringNumber})
+    return mul_impl(b, a, Val(:N), Val(:C), Val(:C))
 end
 
-function sldiv(a::T, b::T) where {T <: Number}
-    return star(a) \ b
+function ⋉(a, b)
+    return mul_impl(a, b, Val(:C), Val(:N), Val(:N))
 end
 
-function sldiv(a::SemiringNumber{A, T}, b::SemiringNumber{A, T}) where {A <: AbstractQuantale, T}
-    num = sldiv_impl(A, parent(a), parent(b))
-    return SemiringNumber{A}(num)
+function ⋊(b, a)
+    return mul_impl(b, a, Val(:N), Val(:C), Val(:N))
 end
 
-"""
-    srdiv(b, a)
-
-Compute the residual ``b / a^*``, equal to the
-infinite infimum
-
-```math
-    b \\wedge b / a \\wedge b / a^2 \\wedge \\cdots
-```
-
-``b / a^*`` is also the greatest solution to the
-fixed-point equation
-
-```math
-    x = x / a \\wedge b.
-```
-
-"""
-srdiv(b, a)
-
-function srdiv(b::Number, a::Number)
-    return sldiv(promote(b, a)...)
-end
-
-function srdiv(b::T, a::T) where {T <: Number}
-    return b / star(a)
-end
-
-function srdiv(b::SemiringNumber{A, T}, a::SemiringNumber{A, T}) where {A <: AbstractQuantale, T}
-    num = srdiv_impl(A, parent(b), parent(a))
-    return SemiringNumber{A}(num)
-end
-
-"""
-    fli(a, b, c)
-
-Compute the infimum ``(a \\ b) \\wedge c``.
-"""
-fli(a, b, c)
-
-function fli(a::Number, b::Number, c::Number)
-    return fli(promote(a, b, c)...)
-end
-
-function fli(a::T, b::T, c::T) where {T <: Number}
-    return (a \ b) ∧ c
-end
-
-function fli(a::SemiringNumber{A, T}, b::SemiringNumber{A, T}, c::SemiringNumber{A, T}) where {A <: AbstractQuantale, T}
-    num = inf_ldiv_impl(A, parent(a), parent(b), parent(c))
-    return SemiringNumber{A}(num)
-end
-
-"""
-    fri(b, a, c)
-
-Compute the infimum ``(b / a) \\wedge c``.
-"""
-fri(b, a, c)
-
-function fri(b::Number, a::Number, c::Number)
-    return fri(promote(b, a, c)...)
-end
-
-function fri(b::T, a::T, c::T) where {T <: Number}
-    return (b / a) ∧ c
-end
-
-function fri(b::SemiringNumber{A, T}, a::SemiringNumber{A, T}, c::SemiringNumber{A, T}) where {A <: AbstractQuantale, T}
-    num = inf_rdiv_impl(A, parent(b), parent(a), parent(c))
-    return SemiringNumber{A}(num)
-end
-
-function Base.:<=(a::SemiringNumber{A, T}, b::SemiringNumber{A, T}) where {A <: AbstractQuantale, T}
+function Base.:<=(a::SemiringNumber{A, T}, b::SemiringNumber{A, T}) where {A <: AbstractSemiring, T}
     return le_impl(A, parent(a), parent(b))
 end
 
-function Base.:<(a::SemiringNumber{A, T}, b::SemiringNumber{A, T}) where {A <: AbstractQuantale, T}
+function Base.:<(a::SemiringNumber{A, T}, b::SemiringNumber{A, T}) where {A <: AbstractSemiring, T}
     return lt_impl(A, parent(a), parent(b))
 end
