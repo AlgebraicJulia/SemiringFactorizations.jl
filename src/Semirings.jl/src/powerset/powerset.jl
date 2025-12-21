@@ -16,3 +16,10 @@ end
 function OrAnd(a::AndOr)
     return OrAnd(~parent(a))
 end
+
+#
+#   aᶜ
+#
+function id_impl(::Type{A}, a, dual::Val{:C}) where {A <: PowersetLattice}
+    return ~a
+end

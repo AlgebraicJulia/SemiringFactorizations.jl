@@ -9,7 +9,7 @@ using SparseArrays
 
 export SemiringNumber, AndOr, OrAnd, AndOrRel, OrAndRel, MaxMin, MinMax, LCMMul, GCDMul, GCDMulPos, MaxMul, MinMul, MaxPlus, MinPlus, MaxPlusPos, MinPlusPos, MaxLSE, MinLSE, MaxGod, MinGod, MaxGog, MinGog, MaxLuk, MinLuk, MaxFod, MinFod
 export MulMatrix
-export ⋉, ⋊, ⅋, star
+export ⅋, star
 export zero_impl, add_impl, mul_add_impl, smul_impl
 
 include("abstract_semiring.jl")

@@ -121,20 +121,20 @@ function slu(matrix::SparseMatrixCSC{T, I}, symb::SymbolicStarLU{I}) where {T, I
     return SparseStarLU(symb, Rptr, Rval, Lptr, Lval, Uval)    
 end
 
-function lmul!(A::SparseStarTriangular{Q}, B::AbstractVecOrMat) where {Q}
-    return sp_smul_impl!(A.symb, A.Rptr, A.Rval, A.Lptr, A.Lval, B, Val(:N), Val(:N), Val(Q), Val(:L))
+function LinearAlgebra.lmul!(A::SparseStarTriangular{Q}, B::AbstractVecOrMat) where {Q}
+    return sp_smul_impl!(A.symb, A.Rptr, A.Rval, A.Lptr, A.Lval, B, Val(:N), Val(Q), Val(:L))
 end
 
-function rmul!(B::AbstractMatrix, A::SparseStarTriangular{Q}) where {Q}
-    return sp_smul_impl!(A.symb, A.Rptr, A.Rval, A.Lptr, A.Lval, unrow(B), Val(:N), Val(:N), Val(Q), Val(:R))
+function LinearAlgebra.rmul!(B::AbstractVecOrMat, A::SparseStarTriangular{Q}) where {Q}
+    return sp_smul_impl!(A.symb, A.Rptr, A.Rval, A.Lptr, A.Lval, B, Val(:N), Val(Q), Val(:R))
 end
 
 function LinearAlgebra.ldiv!(A::SparseStarTriangular{Q}, B::AbstractVecOrMat) where {Q}
-    return sp_smul_impl!(A.symb, A.Rptr, A.Rval, A.Lptr, A.Lval, B, Val(:C), Val(:N), Val(Q), Val(:L))
+    return sp_smul_impl!(A.symb, A.Rptr, A.Rval, A.Lptr, A.Lval, B, Val(:C), Val(Q), Val(:L))
 end
 
-function LinearAlgebra.rdiv!(B::AbstractMatrix, A::SparseStarTriangular{Q}) where {Q}
-    return sp_smul_impl!(A.symb, A.Rptr, A.Rval, A.Lptr, A.Lval, unrow(B), Val(:C), Val(:N), Val(Q), Val(:R))
+function LinearAlgebra.rdiv!(B::AbstractVecOrMat, A::SparseStarTriangular{Q}) where {Q}
+    return sp_smul_impl!(A.symb, A.Rptr, A.Rval, A.Lptr, A.Lval, B, Val(:C), Val(Q), Val(:R))
 end
 
 function sp_smul_impl!(
@@ -145,17 +145,16 @@ function sp_smul_impl!(
         Lval::AbstractVector{T},
         B::AbstractVecOrMat,
         tA::Val,
-        tB::Val,
         uplo::Val,
         side::Val,
     ) where {T, I <: Integer}
 
     if B isa AbstractVector || isone(nthreads())
         # single-threaded
-        st_sp_smul_impl!(symb, Rptr, Rval, Lptr, Lval, B, tA, tB, uplo, side)
+        st_sp_smul_impl!(symb, Rptr, Rval, Lptr, Lval, B, tA, uplo, side)
     else
         # multi-threaded
-        mt_sp_smul_impl!(symb, Rptr, Rval, Lptr, Lval, B, tA, tB, uplo, side)
+        mt_sp_smul_impl!(symb, Rptr, Rval, Lptr, Lval, B, tA, uplo, side)
     end
 
     return B
@@ -169,7 +168,6 @@ function st_sp_smul_impl!(
         Lval::AbstractVector{T},
         B::AbstractVecOrMat,
         tA::Val{R},
-        tB::Val{:N},
         uplo::Val{Q},
         side::Val{S},
     ) where {T, I <: Integer, Q, R, S}
@@ -219,7 +217,7 @@ function st_sp_smul_impl!(
     end
 
     sp_smul_impl!(C, Mptr, Mval, Rptr, Rval, Lptr,
-        Lval, Fval, res, rel, chd, tA, tB, uplo, side)
+        Lval, Fval, res, rel, chd, tA, uplo, side)
 
     if Q == :L && (R == :N && S == :L || R == :C && S == :R) || Q == :U && (R == :N && S == :R || R == :C && S == :L)
         copyto!(B, C)
@@ -244,7 +242,6 @@ function mt_sp_smul_impl!(
         Lval::AbstractVector{T},
         B::AbstractVecOrMat,
         tA::Val,
-        tB::Val{:N},
         uplo::Val,
         side::Val{S},
     ) where {T, I <: Integer, S}
@@ -267,7 +264,7 @@ function mt_sp_smul_impl!(
             Bb = view(B, strt:stop, :)
         end
 
-        st_sp_smul_impl!(symb, Rptr, Rval, Lptr, Lval, Bb, tA, tB, uplo, side)
+        st_sp_smul_impl!(symb, Rptr, Rval, Lptr, Lval, Bb, tA, uplo, side)
     end
 
     return B
@@ -550,12 +547,12 @@ function sp_slu_loop!(
         #
         #   B₂₁ ← B₂₁ U₁₁*
         #   
-        smul_impl!(B₁₁, B₂₁, Val(:N), Val(:N), Val(:U), Val(:R))
+        smul_impl!(B₁₁, B₂₁, Val(:N), Val(:U), Val(:R))
 
         #
         #   B₁₂ ← L₁₁* B₁₂
         #   
-        smul_impl!(B₁₁, B₁₂, Val(:N), Val(:N), Val(:L), Val(:L))
+        smul_impl!(B₁₁, B₁₂, Val(:N), Val(:L), Val(:L))
 
         #
         #   B₂₂ ← B₂₁ B₁₂ + B₂₂
@@ -579,7 +576,6 @@ function sp_smul_impl!(
         rel::AbstractGraph{I}, 
         chd::AbstractGraph{I},
         tA::Val{R},
-        tB::Val{:N},
         uplo::Val{Q},
         side::Val{S},
     ) where {T, I <: Integer, Q, R, S}
@@ -589,13 +585,13 @@ function sp_smul_impl!(
         # forward substitution loop
         for j in vertices(res)
             ns = sp_smul_fwd_loop!(C, Mptr, Mval, Rptr, Rval, Lptr,
-                Lval, Fval, res, rel, chd, ns, j, tA, tB, side)
+                Lval, Fval, res, rel, chd, ns, j, tA, side)
         end
     else
         # backward substitution loop
         for j in reverse(vertices(res))
             ns = sp_smul_bwd_loop!(C, Mptr, Mval, Rptr, Rval, Lptr,
-                Lval, Fval, res, rel, chd, ns, j, tA, tB, side)
+                Lval, Fval, res, rel, chd, ns, j, tA, side)
         end
     end
 
@@ -617,7 +613,6 @@ function sp_smul_fwd_loop!(
         ns::I,
         j::I,
         tA::Val{R},
-        tB::Val{:N},
         side::Val{S},
     ) where {T, I, R, S}
     #
@@ -727,9 +722,9 @@ function sp_smul_fwd_loop!(
     #   C₁ ← B₁₁* C₁
     #
     if R == :N && S == :L || R == :C && S == :R
-        smul_impl!(B₁₁, C₁, tA, tB, Val(:L), side)
+        smul_impl!(B₁₁, C₁, tA, Val(:L), side)
     else
-        smul_impl!(B₁₁, C₁, tA, tB, Val(:U), side)
+        smul_impl!(B₁₁, C₁, tA, Val(:U), side)
     end
 
     if ispositive(na)
@@ -754,9 +749,9 @@ function sp_smul_fwd_loop!(
         #   C₂ ← B₂₁ C₁ + C₂
         #
         if S == :L
-            mul_add_impl!(B₂₁, C₁, C₂, tA, tB, tA)
+            mul_add_impl!(B₂₁, C₁, C₂, tA, Val(:N), tA)
         else
-            mul_add_impl!(C₁, B₂₁, C₂, tB, tA, tA)
+            mul_add_impl!(C₁, B₂₁, C₂, Val(:N), tA, tA)
         end
     end
 
@@ -778,7 +773,6 @@ function sp_smul_bwd_loop!(
         ns::I,
         j::I,
         tA::Val{R},
-        tB::Val{:N},
         side::Val{S},
     ) where {T, I <: Integer, R, S}
     #
@@ -880,9 +874,9 @@ function sp_smul_bwd_loop!(
         #   C₁ ← B₁₂ C₂ + C₁
         #
         if S == :L
-            mul_add_impl!(B₁₂, C₂, C₁, tA, tB, tA)
+            mul_add_impl!(B₁₂, C₂, C₁, tA, Val(:N), tA)
         else
-            mul_add_impl!(C₂, B₁₂, C₁, tB, tA, tA)
+            mul_add_impl!(C₂, B₁₂, C₁, Val(:N), tA, tA)
         end
         #
         #   F₂ ← M₂
@@ -894,9 +888,9 @@ function sp_smul_bwd_loop!(
     #   C₁ ← B₁₁* C₁
     #
     if R == :N && S == :L || R == :C && S == :R
-        smul_impl!(B₁₁, C₁, tA, tB, Val(:U), side)
+        smul_impl!(B₁₁, C₁, tA, Val(:U), side)
     else
-        smul_impl!(B₁₁, C₁, tA, tB, Val(:L), side)
+        smul_impl!(B₁₁, C₁, tA, Val(:L), side)
     end
 
     # copy C into F
@@ -1262,3 +1256,12 @@ function Semirings.add_impl(A::SparseMatrixCSC{T, I}, B::SparseMatrixCSC{T, I}, 
     resize!(nonzeros(C), c)
     return C
 end
+
+# -------------------- #
+# Sinkhorn's Algorithm #
+# -------------------- #
+
+function softmin(A::SparseMatrixCSC, beta::Real)
+    return SparseMatrixCSC(size(A)..., A.colptr, A.rowval, softmin(A.nzval, beta))
+end
+

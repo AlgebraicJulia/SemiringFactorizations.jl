@@ -1,76 +1,30 @@
 """
     AbstractSemiring
 
-A closed semiring is a sextuple (R, +, ×, *, 0, 1), where
-
-  - (R, +, 0) is a commutative monoid
-  - (R, ×, 1) is a monoid
-  - multiplication (×) distributes over addition (+)
-  - star (*) satisfies 1 + a*a = 1 * aa* = a*
-
-To create a new semiring, define a concrete subtype `A <: AbstractSemiring`
-as well as the following methods.
-
-  - `zero_impl(A, T)`
-  - `one_impl(A, T)`
-  - `star_impl(A, a)`
-  - `add_impl(A, a, b)`
-  - `mul_impl(A, a, b)`
-
-The following additional methods are optional.
-
-  - `mul_add_impl(A, a, b, c)`
-  - `slmul_impl(A, a, b)`
-  - `srmul_impl(A, b, a)`
-
-"""
-abstract type AbstractSemiring end
-
-#=
-"""
-    AbstractSemiring <: AbstractSemiring
-
 A unital quantale is a quadruple (R, ≤, ×, 1), where
 
   - (R, ≤) is a complete lattice
   - (R, ×, 1) is a monoid
   - multiplication (×) distributes over joins
 
-Every unital quantale is also a closed semiring (R, +, ×, *, 0, 1),
-where
-
-  - a + b is the join of a and b
-  - 0 is the least element
-  - a* is the infinite sum 1 + a + a² + a³ + ⋯
-
 To create a new unital quantale, define a concrete subtype
 `A <: AbstractSemiring` as well as the following methods
 
   - `zero_impl(A, T)`
   - `one_impl(A, T)`
-  - `typemax_impl(A, T)`
   - `star_impl(A, a)`
   - `add_impl(A, a, b)`
   - `mul_impl(A, a, b)`
-  - `inf_impl(A, a, b)`
-  - `ldiv_impl(A, a, b)`
-  - `rdiv_impl(A, b, a)`
 
 The following additional methods are optional.
 
+  - `mul_add_impl(A, a, b, c)`
+  - `smul_impl(A, a, b)`
   - `le_impl(A, a, b)`
   - `lt_impl(A, a, b)`
-  - `slmul_impl(A, a, b)`
-  - `srmul_impl(A, b, a)`
-  - `sldiv_impl(A, a, b)`
-  - `srdiv_impl(A, b, a)`
-  - `mul_add_impl(A, a, b, c)`
-  - `ldiv_inf_impl(A, a, b, c)`
-  - `rdiv_inf_impl(A, b, a, c)`
 
 """
-abstract type AbstractSemiring <: AbstractSemiring end
-=#
+abstract type AbstractSemiring end
 
 """
     AbstractCommutativeSemiring <: AbstractSemiring
@@ -81,21 +35,16 @@ subtype `A <: AbstractCommutativeSemiring` as well as the following methods
 
   - `zero_impl(A, T)`
   - `one_impl(A, T)`
-  - `typemax_impl(A, T)`
   - `star_impl(A, a)`
   - `add_impl(A, a, b)`
   - `mul_impl(A, a, b)`
-  - `inf_impl(A, a, b)`
-  - `ldiv_impl(A, a, b)`
 
 The following additional methods are optional.
 
+  - `mul_add_impl(A, a, b, c)`
+  - `smul_impl(A, a, b)`
   - `le_impl(A, a, b)`
   - `lt_impl(A, a, b)`
-  - `slmul_impl(A, a, b)`
-  - `sldiv_impl(A, a, b)`
-  - `mul_add_impl(A, a, b, c)`
-  - `ldiv_inf_impl(A, a, b, c)`
 
 """
 abstract type AbstractCommutativeSemiring <: AbstractSemiring end
@@ -121,12 +70,10 @@ new quantale of this type, define a concrete subtype
 `A <: AbstractTriNorm` as well as the following methods.
 
   - `mul_impl(A, a, b)`
-  - `ldiv_impl(A, a, b)`
 
 The following additional methods are optional.
 
   - `mul_add_impl(A, a, b, c)`
-  - `ldiv_inf_impl(A, a, b, c)`
   
 """
 abstract type AbstractTriNorm <: AbstractIntegralSemiring end
@@ -147,12 +94,10 @@ new quantale of this type, define a concrete subtype
 `A <: AbstractTriCoNorm` as well as the following methods.
 
   - `mul_impl(A, a, b)`
-  - `ldiv_impl(A, a, b)`
 
 The following additional methods are optional.
 
   - `mul_add_impl(A, a, b, c)`
-  - `ldiv_inf_impl(A, a, b, c)`
   
 """
 abstract type AbstractTriConorm <: AbstractIntegralSemiring end
@@ -165,17 +110,13 @@ A complete Heyting algebra (R, ≤) defines a commutative quantale
 subtype `A <: AbstractLattice` as well as the following methods.
 
   - `zero_impl(A, T)`
-  - `one_impl(A, T)`
   - `add_impl(A, a, b)`
-  - `mul_impl(A, a, b)`
-  - `ldiv_impl(A, a, b)`
 
 The following additional methods are optional.
 
   - `le_impl(A, a, b)`
   - `lt_impl(A, a, b)`
   - `mul_add_impl(A, a, b, c)`
-  - `ldiv_inf_impl(A, a, b, c)`
 
 """
 abstract type AbstractLattice <: AbstractIntegralSemiring end
@@ -184,6 +125,9 @@ dc(::Val{:N}, ::Val{:N}) = Val(:N)
 dc(::Val{:N}, ::Val{:C}) = Val(:C)
 dc(::Val{:C}, ::Val{:N}) = Val(:C)
 dc(::Val{:C}, ::Val{:C}) = Val(:N)
+
+ds(a, b, ::Val{:N}) = a, b
+ds(a, b, ::Val{:C}) = b, a
 
 """
     zero_impl(A, T, dual)
@@ -277,7 +221,9 @@ end
 Compute the product a × b.
 """
 function mul_impl(::Type{A}, a::T, b::T, ta::Val, tb::Val, dual::Val) where {A <: AbstractSemiring, T}
-    return id_impl(A, mul_impl(A, id_impl(A, a, dc(ta, dual)), id_impl(A, b, dc(tb, dual)), Val(:N), Val(:N), Val(:N)), dual)
+    a = id_impl(A, a, dc(ta, dual))
+    b = id_impl(A, b, dc(tb, dual))
+    return id_impl(A, mul_impl(A, ds(a, b, dual)..., Val(:N), Val(:N), Val(:N)), dual)
 end
 
 function mul_impl(::Type{A}, a::T, b::T, ta::Val{:N}, tb::Val{:C}, dual::Val) where {A <: AbstractCommutativeSemiring, T}
@@ -306,24 +252,24 @@ function mul_add_impl(::Type{A}, a::T, b::T, c::T, ta::Val{:N}, tb::Val{:C}, dua
 end
 
 """
-    smul_impl(A, a, b, ta, tb, side)
+    smul_impl(A, a, b, ta, side)
 
 Compute the product a* × b.
 """
-function smul_impl(::Type{A}, a::T, b::T, ta::Val, tb::Val, side::Val{:L}) where {A <: AbstractSemiring, T}
-    return mul_impl(A, star_impl(A, a), b, ta, tb, ta)
+function smul_impl(::Type{A}, a::T, b::T, ta::Val, side::Val{:L}) where {A <: AbstractSemiring, T}
+    return mul_impl(A, star_impl(A, a), b, ta, Val(:N), ta)
 end
 
-function smul_impl(::Type{A}, a::T, b::T, ta::Val, tb::Val, side::Val{:L}) where {A <: AbstractIntegralSemiring, T}
-    return id_impl(A, b, tb)
+function smul_impl(::Type{A}, a::T, b::T, ta::Val, side::Val{:L}) where {A <: AbstractIntegralSemiring, T}
+    return b
 end
 
-function smul_impl(::Type{A}, a::T, b::T, ta::Val, tb::Val, side::Val{:R}) where {A <: AbstractSemiring, T}
-    return mul_impl(A, b, star_impl(A, a), tb, ta, ta)
+function smul_impl(::Type{A}, a::T, b::T, ta::Val, side::Val{:R}) where {A <: AbstractSemiring, T}
+    return mul_impl(A, b, star_impl(A, a), Val(:N), ta, ta)
 end
 
-function smul_impl(::Type{A}, a::T, b::T, ta::Val, tb::Val, side::Val{:R}) where {A <: AbstractCommutativeSemiring, T}
-    return smul_impl(A, a, b, ta, tb, Val(:L))
+function smul_impl(::Type{A}, a::T, b::T, ta::Val, side::Val{:R}) where {A <: AbstractCommutativeSemiring, T}
+    return smul_impl(A, a, b, ta, Val(:L))
 end
 
 # --------- #

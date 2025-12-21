@@ -98,3 +98,16 @@ function star_impl(::Type{A}, a::T) where {A <: TropicalSemiring, T}
     ⊤ = zero_impl(A, T, Val(:C))
     return ifelse(le_impl(A, a, ϵ), ϵ, ⊤)
 end
+
+#
+#   1/a
+#
+function id_impl(::Type{A}, a, dual::Val{:C}) where {A <: Union{MinMulSemiring, MaxMulSemiring}}
+    return inv(a)
+end
+#
+#   -a
+#
+function id_impl(::Type{A}, a, dual::Val{:C}) where {A <: Union{MinPlusSemiring, MaxPlusSemiring}}
+    return -a
+end

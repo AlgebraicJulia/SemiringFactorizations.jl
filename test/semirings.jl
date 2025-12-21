@@ -1,16 +1,16 @@
-function Base.:≈(a::T, b::T) where {T <: Union{Tuple, AbstractMatrix}}
+function Base.:≈(a::AbstractMatrix, b::AbstractMatrix)
     return all(splat(≈), zip(a, b))
 end
 
-function Base.:<(a::T, b::T) where {T <: AbstractMatrix}
+function Base.:<(a::AbstractMatrix, b::AbstractMatrix)
     return all(splat(<), zip(a, b))
 end
 
-function ⪯(a::T, b::T) where {T <: AbstractMatrix}
+function ⪯(a::AbstractMatrix, b::AbstractMatrix)
     return all(splat(⪯), zip(a, b))
 end
 
-function ⪯(a::T, b::T) where {T}
+function ⪯(a, b)
     return (a < b) || (a ≈ b)
 end
 
@@ -102,31 +102,60 @@ function test_quantale(a, b, c, ∅, ϵ, ⊤)
     @test star(a + b) ≈ star(star(a) + b) ≈ star(a + star(b)) ≈ star(star(a) + star(b))
 end
 
-@testset "interface" begin
-    # semirings
-    types = (
-        Float64,
-        ComplexF64,
-    )
+function test_girard(a, b, c, ∅, ϵ, ⊥, ⊤)
+    test_quantale(a, b, c, ∅, ϵ, ⊤)
 
-    for T in types
-        a = rand(T)
-        b = rand(T)
-        c = rand(T)
-        test_semiring(a, b, c, zero(T), one(T))
-    end
+    # dual operations
+    @test a'' ≈ a
+
+    @test a * b ≈ (b' ⅋ a')'
+    @test a ⅋ b ≈ (b' * a')'    
+
+    @test a + b ≈ (a' & b')'
+    @test a & b ≈ (a' + b')'
+
+    @test ϵ' ≈ ⊥
+    @test ⊥' ≈ ϵ
+
+    @test ∅' ≈ ⊤
+    @test ⊤' ≈ ∅
+
+    @test a \ b ≈ a' ⅋ b
+    @test a / b ≈ a ⅋ b' 
+
+    # cyclicity
+    ⊥ / a ≈ a \ ⊥ ≈ a'
+
+    # distributivity
+    @test a ⅋ (b & c) ≈ (a ⅋ b) & (a ⅋ c)
+    @test (a & b) ⅋ c ≈ (a ⅋ c) & (b ⅋ c)
+    @test a \ (b & c) ≈ (a \ b) & (a \ c)
+    @test (a + b) \ c ≈ (a \ c) & (b \ c)
+end
+
+@testset "interface" begin
+    # nonnegative real numbers
+    a = rand()
+    b = rand()
+    c = rand()
+    test_semiring(a, b, c, 0.0, 1.0)
+
+    a = rand(10, 10) * 0.1
+    b = rand(10, 10) * 0.1
+    c = rand(10, 10) * 0.1
+    test_semiring(a, b, c, zero(a), one(a))
 
     # power set lattices (boolean)
     for T in (OrAnd, AndOr)
         a = rand(AndOr{Bool}) |> T
         b = rand(AndOr{Bool}) |> T
         c = rand(AndOr{Bool}) |> T
-        test_quantale(a, b, c, zero(a), one(a), typemax(a))
+        test_girard(a, b, c, zero(a), one(a), one(a)', typemax(a))
 
         a = rand(AndOr{Bool}, 10, 10) .|> T
         b = rand(AndOr{Bool}, 10, 10) .|> T
         c = rand(AndOr{Bool}, 10, 10) .|> T
-        test_quantale(a, b, c, zero(a), one(a), typemax.(a))
+        test_girard(a, b, c, zero(a), one(a), one(a)', typemax.(a))
     end
 
     # power set lattices (unsigned)
@@ -134,12 +163,12 @@ end
         a = rand(AndOr{UInt64}) |> T
         b = rand(AndOr{UInt64}) |> T
         c = rand(AndOr{UInt64}) |> T
-        test_quantale(a, b, c, zero(a), one(a), typemax(a))
+        test_girard(a, b, c, zero(a), one(a), one(a)', typemax(a))
 
         a = rand(AndOr{UInt64}, 10, 10) .|> T
         b = rand(AndOr{UInt64}, 10, 10) .|> T
         c = rand(AndOr{UInt64}, 10, 10) .|> T
-        test_quantale(a, b, c, zero(a), one(a), typemax.(a))
+        test_girard(a, b, c, zero(a), one(a), one(a)', typemax.(a))
     end
 
     # relation quantales
@@ -147,12 +176,12 @@ end
         a = rand(AndOrRel) |> T
         b = rand(AndOrRel) |> T
         c = rand(AndOrRel) |> T
-        test_quantale(a, b, c, zero(a), one(a), typemax(a))
+        test_girard(a, b, c, zero(a), one(a), one(a)', typemax(a))
 
         a = rand(AndOrRel, 10, 10) .|> T
         b = rand(AndOrRel, 10, 10) .|> T
         c = rand(AndOrRel, 10, 10) .|> T
-        test_quantale(a, b, c, zero(a), one(a), typemax.(a))
+        test_girard(a, b, c, zero(a), one(a), one(a)', typemax.(a))
     end
 
     # bottleneck lattices
@@ -173,45 +202,33 @@ end
         a = rand(MinPlus{Float64}) |> T
         b = rand(MinPlus{Float64}) |> T
         c = rand(MinPlus{Float64}) |> T
-        test_quantale(a, b, c, zero(a), one(a), typemax(a))
+        test_girard(a, b, c, zero(a), one(a), one(a)', typemax(a))
     
         a = rand(MinPlus{Float64}, 10, 10) .|> T
         b = rand(MinPlus{Float64}, 10, 10) .|> T
         c = rand(MinPlus{Float64}, 10, 10) .|> T
-        test_quantale(a, b, c, zero(a), one(a), typemax.(a))
+        test_girard(a, b, c, zero(a), one(a), one(a)', typemax.(a))
     end
 
     # lawvere quantales
     for T in (
-            MaxPlusPos{1},
-            MaxPlusPos{2},
-            MaxPlusPos{3},
-            MaxPlusPos{4},
-            MinPlusPos{1},
-            MinPlusPos{2},
-            MinPlusPos{3},
-            MinPlusPos{4},
-            MaxLSE{1},
-            MaxLSE{2},
-            MaxLSE{3},
-            MaxLSE{4},
-            MinLSE{1},
-            MinLSE{2},
-            MinLSE{3},
-            MinLSE{4},
+            MaxPlusPos,
+            MinPlusPos,
+            MaxLSE,
+            MinLSE,
         )
-        a = rand(MinPlusPos{1, Float64}) |> T
-        b = rand(MinPlusPos{1, Float64}) |> T
-        c = rand(MinPlusPos{1, Float64}) |> T
+        a = rand(MinPlusPos{Float64}) |> T
+        b = rand(MinPlusPos{Float64}) |> T
+        c = rand(MinPlusPos{Float64}) |> T
         test_quantale(a, b, c, zero(a), one(a), typemax(a))
     
-        a = rand(MinPlusPos{1, Float64}, 10, 10) .|> T
-        b = rand(MinPlusPos{1, Float64}, 10, 10) .|> T
-        c = rand(MinPlusPos{1, Float64}, 10, 10) .|> T
+        a = rand(MinPlusPos{Float64}, 10, 10) .|> T
+        b = rand(MinPlusPos{Float64}, 10, 10) .|> T
+        c = rand(MinPlusPos{Float64}, 10, 10) .|> T
         test_quantale(a, b, c, zero(a), one(a), typemax.(a))
     end
 
-    for T in (MaxGod, MinGod, MaxGog, MinGog, MaxLuk, MinLuk, MaxFod, MinFod)
+    for T in (MaxGod, MinGod, MaxGog, MinGog)
         a = rand() |> T
         b = rand() |> T
         c = rand() |> T
@@ -221,6 +238,18 @@ end
         b = rand(10, 10) .|> T
         c = rand(10, 10) .|> T
         test_quantale(a, b, c, zero(a), one(a), typemax.(a))
+    end
+
+    for T in (MaxLuk, MinLuk, MaxFod, MinFod)
+        a = rand() |> T
+        b = rand() |> T
+        c = rand() |> T
+        test_girard(a, b, c, zero(a), one(a), one(a)', typemax(a))
+    
+        a = rand(10, 10) .|> T
+        b = rand(10, 10) .|> T
+        c = rand(10, 10) .|> T
+        test_girard(a, b, c, zero(a), one(a), one(a)', typemax.(a))
     end
 
     for T in (GCDMulPos,)
@@ -239,12 +268,12 @@ end
         a = rand(0:9) // rand(1:9) |> T
         b = rand(0:9) // rand(1:9) |> T
         c = rand(0:9) // rand(1:9) |> T
-        test_quantale(a, b, c, zero(a), one(a), typemax(a))
+        test_girard(a, b, c, zero(a), one(a), one(a)', typemax(a))
 
         a = rand(0:9, 10, 10) .// rand(1:9, 10, 10) .|> T
         b = rand(0:9, 10, 10) .// rand(1:9, 10, 10) .|> T
         c = rand(0:9, 10, 10) .// rand(1:9, 10, 10) .|> T
-        test_quantale(a, b, c, zero(a), one(a), typemax.(a))
+        test_girard(a, b, c, zero(a), one(a), one(a)', typemax.(a))
 
     end
 end

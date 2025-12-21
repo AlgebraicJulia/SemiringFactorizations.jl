@@ -32,6 +32,10 @@ triangular:
 """
 abstract type AbstractStarTriangular{Q, T} <: AbstractStar{T} end
 
+struct AdjointStar{T, S <: AbstractStar{T}} <: AbstractStar{T}
+    star::S
+end
+
 function Base.Matrix(A::AbstractStar{T}) where {T}
     B = zeros(T, size(A))
     fill!(view(B, diagind(B)), one(T))
@@ -60,8 +64,24 @@ function Base.size(F::AbstractStarLU)
     return size(AbstractStarTriangular{:L}(F))
 end
 
+function Base.size(F::AdjointStar)
+    return size(parent(F))
+end
+
 function Base.size(F::AbstractStar, i::Integer)
     return size(F)[i]
+end
+
+function Base.parent(F::AdjointStar)
+    return F.star
+end
+
+function Base.adjoint(F::AbstractStar)
+    return AdjointStar(F)
+end
+
+function Base.adjoint(F::AdjointStar)
+    return parent(F)
 end
 
 function Semirings.star(A::AbstractMatrix)
@@ -84,6 +104,22 @@ function Base.:*(B::AbstractMatrix, A::AbstractStar{T}) where {T}
     return rmul!(wrapcopy(T, B), A)
 end
 
+function Base.:*(A::AbstractStar, B::Adjoint)
+    return (B' / A)'
+end
+
+function Base.:*(B::Adjoint, A::AbstractStar)
+    return (A \ B')'
+end
+
+function Semirings.:⅋(A::AdjointStar, B::AbstractVecOrMat)
+    return A' \ B
+end
+
+function Semirings.:⅋(B::AbstractMatrix, A::AdjointStar)
+    return B / A'
+end
+
 function Base.:\(A::AbstractStar{T}, B::AbstractVecOrMat) where {T}
     return ldiv!(A, wrapcopy(T, B))
 end
@@ -92,16 +128,20 @@ function Base.:/(B::AbstractMatrix, A::AbstractStar{T}) where {T}
     return rdiv!(wrapcopy(T, B), A)
 end
 
-function lmul!(A::AbstractStarLU, B::AbstractVecOrMat)
+function LinearAlgebra.lmul!(A::AbstractStarLU, B::AbstractVecOrMat)
     L = AbstractStarTriangular{:L}(A)
     U = AbstractStarTriangular{:U}(A)
     return lmul!(U, lmul!(L, B))
 end
 
-function rmul!(B::AbstractMatrix, A::AbstractStarLU)
+function LinearAlgebra.rmul!(B::AbstractVecOrMat, A::AbstractStarLU)
     L = AbstractStarTriangular{:L}(A)
     U = AbstractStarTriangular{:U}(A)
     return rmul!(rmul!(B, U), L)
+end
+
+function LinearAlgebra.rmul!(B::AbstractRowVector, A::AbstractStarTriangular)
+    return transpose(rmul!(transpose(B), A))
 end
 
 function LinearAlgebra.ldiv!(A::AbstractStarLU, B::AbstractVecOrMat)
@@ -110,8 +150,12 @@ function LinearAlgebra.ldiv!(A::AbstractStarLU, B::AbstractVecOrMat)
     return ldiv!(L, ldiv!(U, B))
 end
 
-function LinearAlgebra.rdiv!(B::AbstractMatrix, A::AbstractStarLU)
+function LinearAlgebra.rdiv!(B::AbstractVecOrMat, A::AbstractStarLU)
     L = AbstractStarTriangular{:L}(A)
     U = AbstractStarTriangular{:U}(A)
     return rdiv!(rdiv!(B, L), U)
+end
+
+function LinearAlgebra.rdiv!(B::AbstractRowVector, A::AbstractStarTriangular)
+    return transpose(rdiv!(transpose(B), A))
 end

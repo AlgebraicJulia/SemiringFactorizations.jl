@@ -72,7 +72,7 @@ function slu_impl2!(A::AbstractMatrix)
         #
         #   Ani ← Ani Aii*
         #
-        smul_impl2!(Aii, Ani, Val(:N), Val(:N), Val(:U), Val(:R))
+        smul_impl2!(Aii, Ani, Val(:N), Val(:U), Val(:R))
         #
         #   Ann ← Ann + Ani Ain
         #
@@ -112,11 +112,11 @@ function slu_impl!(A::AbstractMatrix, blocksize::Int = DEFAULT_BLOCK_SIZE)
         # 
         #   Abn ← Lbb* Abn
         #    
-        smul_impl!(Abb, Abn, Val(:N), Val(:N), Val(:L), Val(:L))
+        smul_impl!(Abb, Abn, Val(:N), Val(:L), Val(:L))
         #
         #   Anb ← Anb Ubb*
         #
-        smul_impl!(Abb, Anb, Val(:N), Val(:N), Val(:U), Val(:R))
+        smul_impl!(Abb, Anb, Val(:N), Val(:U), Val(:R))
         #
         #   Ann ← Anb Abn + Ann
         #
@@ -130,43 +130,43 @@ end
 # Triangular Solve #
 # ---------------- #
 
-function lmul!(A::StarTriangular{Q}, B::AbstractVecOrMat) where {Q}
-    return smul_impl!(parent(A), B, Val(:N), Val(:N), Val(Q), Val(:L))
+function LinearAlgebra.lmul!(A::StarTriangular{Q}, B::AbstractVecOrMat) where {Q}
+    return smul_impl!(parent(A), B, Val(:N), Val(Q), Val(:L))
 end
 
-function rmul!(B::AbstractMatrix, A::StarTriangular{Q}) where {Q}
-    return smul_impl!(parent(A), unrow(B), Val(:N), Val(:N), Val(Q), Val(:R))
+function LinearAlgebra.rmul!(B::AbstractVecOrMat, A::StarTriangular{Q}) where {Q}
+    return smul_impl!(parent(A), B, Val(:N), Val(Q), Val(:R))
 end
 
 function LinearAlgebra.ldiv!(A::StarTriangular{Q}, B::AbstractVecOrMat) where {Q}
-    return smul_impl!(parent(A), B, Val(:C), Val(:N), Val(Q), Val(:L))
+    return smul_impl!(parent(A), B, Val(:C), Val(Q), Val(:L))
 end
 
-function LinearAlgebra.rdiv!(B::AbstractMatrix, A::StarTriangular{Q}) where {Q}
-    return smul_impl!(parent(A), unrow(B), Val(:C), Val(:N), Val(Q), Val(:R))
+function LinearAlgebra.rdiv!(B::AbstractVecOrMat, A::StarTriangular{Q}) where {Q}
+    return smul_impl!(parent(A), B, Val(:C), Val(Q), Val(:R))
 end
 
-function smul_impl2!(A::Number, B::AbstractScalar, tA::Val, tB::Val, uplo::Val{:U}, side::Val)
+function smul_impl2!(A::Number, B::AbstractScalar, tA::Val, uplo::Val{:U}, side::Val)
     #
     #   B ← A* B
     #
-    B[] = smul_impl(A, B[], tA, tB, side)
+    B[] = smul_impl(A, B[], tA, side)
     return B
 end
 
-function smul_impl2!(A::Number, B::AbstractVector, tA::Val, tB::Val, uplo::Val{:U}, side::Val)
+function smul_impl2!(A::Number, B::AbstractVector, tA::Val, uplo::Val{:U}, side::Val)
     n = length(B)
     #
     #   B ← A* B
     #
     @inbounds @simd for i in 1:n
-        B[i] = smul_impl(A, B[i], tA, tB, side)
+        B[i] = smul_impl(A, B[i], tA, side)
     end
 
     return B
 end
 
-function smul_impl2!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:C}, tB::Val{:N}, uplo::Val{:L}, side::Val{:L})
+function smul_impl2!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:C}, uplo::Val{:L}, side::Val{:L})
     @assert size(A, 1) == size(A, 2) == size(B, 1)
 
     n = size(A, 1)
@@ -187,20 +187,14 @@ function smul_impl2!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:C}, tB::Va
         #
         #   Bn ← Ain \ Bi & Bn
         #
-        mul_add_impl!(Ain, Bi, Bn, tA, tB, tA)
+        mul_add_impl!(Ain, Bi, Bn, tA, Val(:N), tA)
     end
 
     return B
 end
 
-function smul_impl!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:C}, tB::Val{R}, uplo::Val{:L}, side::Val{:L}, blocksize::Int = DEFAULT_BLOCK_SIZE) where {R}
-    if B isa AbstractVector
-        @assert size(A, 1) == size(A, 2) == length(B)
-    elseif R == :N
-        @assert size(A, 1) == size(A, 2) == size(B, 1)
-    else
-        @assert size(A, 1) == size(A, 2) == size(B, 2)
-    end
+function smul_impl!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:C}, uplo::Val{:L}, side::Val{:L}, blocksize::Int = DEFAULT_BLOCK_SIZE)
+    @assert size(A, 1) == size(A, 2) == size(B, 1)
 
     n = size(A, 1)
 
@@ -220,27 +214,24 @@ function smul_impl!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:C}, tB::Val
         if B isa AbstractVector
             Bb = @view B[strt:stop]
             Bn = @view B[1:strt - 1]
-        elseif R == :N
+        else
             Bb = @view B[strt:stop,  :]
             Bn = @view B[1:strt - 1, :]
-        else
-            Bb = @view B[:, strt:stop]
-            Bn = @view B[:, 1:strt - 1]
         end
         #
         #   Bb ← Abb* \ Bbb
         #
-        smul_impl2!(Abb, Bb, tA, tB, uplo, side)
+        smul_impl2!(Abb, Bb, tA, uplo, side)
         #
         #   Bn ← Abn \ Bb & Bn
         #
-        mul_add_impl!(Abn, Bb, Bn, tA, tB, tA)
+        mul_add_impl!(Abn, Bb, Bn, tA, Val(:N), tA)
     end
 
     return B
 end
 
-function smul_impl2!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:C}, tB::Val{:N}, uplo::Val{:U}, side::Val{:L})
+function smul_impl2!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:C}, uplo::Val{:U}, side::Val{:L})
     @assert size(A, 1) == size(A, 2) == size(B, 1)
 
     n = size(A, 1)
@@ -262,17 +253,17 @@ function smul_impl2!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:C}, tB::Va
         #
         #   Bi ← Aii* \ Bi
         #
-        smul_impl2!(Aii, Bi, tA, tB, uplo, side)
+        smul_impl2!(Aii, Bi, tA, uplo, side)
         #
         #   Bn ← Ain \ Bi + Bn
         #
-        mul_add_impl!(Ain, Bi[], Bn, tA, tB, tA)
+        mul_add_impl!(Ain, Bi[], Bn, tA, Val(:N), tA)
     end
 
     return B
 end
 
-function smul_impl!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:C}, tB::Val{:N}, uplo::Val{:U}, side::Val{:L}, blocksize = DEFAULT_BLOCK_SIZE)
+function smul_impl!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:C}, uplo::Val{:U}, side::Val{:L}, blocksize = DEFAULT_BLOCK_SIZE)
     @assert size(A, 1) == size(A, 2) == size(B, 1)
 
     n = size(A, 1)
@@ -300,17 +291,17 @@ function smul_impl!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:C}, tB::Val
         #
         #   Bb ← Abb* \ Bb
         #
-        smul_impl2!(Abb, Bb, tA, tB, uplo, side)
+        smul_impl2!(Abb, Bb, tA, uplo, side)
         #
         #   Bn ← Abn \ Bb & Bn
         #
-        mul_add_impl!(Abn, Bb, Bn, tA, tB, tA)
+        mul_add_impl!(Abn, Bb, Bn, tA, Val(:N), tA)
     end
 
     return B
 end
 
-function smul_impl2!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:C}, tB::Val{:N}, uplo::Val{:L}, side::Val{:R})
+function smul_impl2!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:C}, uplo::Val{:L}, side::Val{:R})
     if B isa AbstractVector
         @assert size(A, 1) == size(A, 2) == length(B)
     else
@@ -338,13 +329,13 @@ function smul_impl2!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:C}, tB::Va
         #
         #   Bj ← Bn / Ajn & Bj
         #
-        mul_add_impl!(Bn, Ajn, Bj, tB, tA, tA)
+        mul_add_impl!(Bn, Ajn, Bj, Val(:N), tA, tA)
     end
 
     return
 end
 
-function smul_impl!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:C}, tB::Val{:N}, uplo::Val{:L}, side::Val{:R}, blocksize::Int = DEFAULT_BLOCK_SIZE)
+function smul_impl!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:C}, uplo::Val{:L}, side::Val{:R}, blocksize::Int = DEFAULT_BLOCK_SIZE)
     if B isa AbstractVector
         @assert size(A, 1) == size(A, 2) == length(B)
     else
@@ -375,17 +366,17 @@ function smul_impl!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:C}, tB::Val
         #
         #   Bb ← Bn / Abn & Bb
         #
-        mul_add_impl!(Bn, Abn, Bb, tB, tA, tA)
+        mul_add_impl!(Bn, Abn, Bb, Val(:N), tA, tA)
         #
         #   Bb ← Bb / Abb*
         #
-        smul_impl2!(Abb, Bb, tA, tB, uplo, side)
+        smul_impl2!(Abb, Bb, tA, uplo, side)
     end
 
     return B
 end
 
-function smul_impl2!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:C}, tB::Val{:N}, uplo::Val{:U}, side::Val{:R})
+function smul_impl2!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:C}, uplo::Val{:U}, side::Val{:R})
     if B isa AbstractVector
          @assert size(A, 1) == size(A, 2) == length(B)
     else
@@ -414,17 +405,17 @@ function smul_impl2!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:C}, tB::Va
         #
         #   Bj ← Bn / Ajn & Bj
         #
-        mul_add_impl!(Bn, Ajn, Bj, tB, tA, tA)
+        mul_add_impl!(Bn, Ajn, Bj, Val(:N), tA, tA)
         #
         #   Bb ← Bb / Ajj*
         #
-        smul_impl2!(Ajj, Bj, tA, tB, uplo, side)
+        smul_impl2!(Ajj, Bj, tA, uplo, side)
     end
 
     return B
 end
 
-function smul_impl!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:C}, tB::Val{:N}, uplo::Val{:U}, side::Val{:R}, blocksize::Int = DEFAULT_BLOCK_SIZE)
+function smul_impl!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:C}, uplo::Val{:U}, side::Val{:R}, blocksize::Int = DEFAULT_BLOCK_SIZE)
     if B isa AbstractVector
         @assert size(A, 1) == size(A, 2) == length(B)
     else
@@ -455,18 +446,18 @@ function smul_impl!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:C}, tB::Val
         #
         #   Bb ← Bn / Abn & Bb
         #
-        mul_add_impl!(Bn, Abn, Bb, tB, tA, tA)
+        mul_add_impl!(Bn, Abn, Bb, Val(:N), tA, tA)
         #
         #   Bb ← Bb / Abb*
         #
-        smul_impl2!(Abb, Bb, tA, tB, uplo, side)
+        smul_impl2!(Abb, Bb, tA, uplo, side)
     end
 
     return B
 end
 
 
-function smul_impl2!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:N}, tB::Val{:N}, uplo::Val{:L}, side::Val{:L})
+function smul_impl2!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:N}, uplo::Val{:L}, side::Val{:L})
     @assert size(A, 1) == size(A, 2) == size(B, 1)
 
     n = size(A, 1)
@@ -487,13 +478,13 @@ function smul_impl2!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:N}, tB::Va
         #
         #   Bn ← Ani Bi + Bn
         #
-        mul_add_impl!(Ani, Bi, Bn, tA, tB, tA)
+        mul_add_impl!(Ani, Bi, Bn, tA, Val(:N), tA)
     end
 
     return B
 end
 
-function smul_impl!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:N}, tB::Val{:N}, uplo::Val{:L}, side::Val{:L}, blocksize = DEFAULT_BLOCK_SIZE)
+function smul_impl!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:N}, uplo::Val{:L}, side::Val{:L}, blocksize = DEFAULT_BLOCK_SIZE)
     @assert size(A, 1) == size(A, 2) == size(B, 1)
 
     n = size(A, 1)
@@ -521,17 +512,17 @@ function smul_impl!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:N}, tB::Val
         #
         #   Bb ← Abb* Bb
         #
-        smul_impl2!(Abb, Bb, tA, tB, uplo, side)
+        smul_impl2!(Abb, Bb, tA, uplo, side)
         #
         #   Bn ← Anb Bb + Bn
         #
-        mul_add_impl!(Anb, Bb, Bn, tA, tB, tA)
+        mul_add_impl!(Anb, Bb, Bn, tA, Val(:N), tA)
     end
 
     return B
 end
 
-function smul_impl2!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:N}, tB::Val{:N}, uplo::Val{:U}, side::Val{:L})
+function smul_impl2!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:N}, uplo::Val{:U}, side::Val{:L})
     @assert size(A, 1) == size(A, 2) == size(B, 1)
 
     n = size(A, 1)
@@ -553,17 +544,17 @@ function smul_impl2!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:N}, tB::Va
         #
         #   Bi ← Aii* Bi
         #
-        smul_impl2!(Aii, Bi, tA, tB, uplo, side)
+        smul_impl2!(Aii, Bi, tA, uplo, side)
         #
         #   Bn ← Ani Bi + Bn
         #
-        mul_add_impl!(Ani, Bi[], Bn, tA, tB, tA)
+        mul_add_impl!(Ani, Bi[], Bn, tA, Val(:N), tA)
     end
 
     return B
 end
 
-function smul_impl!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:N}, tB::Val{:N}, uplo::Val{:U}, side::Val{:L}, blocksize::Int = DEFAULT_BLOCK_SIZE)
+function smul_impl!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:N}, uplo::Val{:U}, side::Val{:L}, blocksize::Int = DEFAULT_BLOCK_SIZE)
     @assert size(A, 1) == size(A, 2) == size(B, 1)
 
     n = size(A, 1)
@@ -591,17 +582,17 @@ function smul_impl!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:N}, tB::Val
         #
         #   Bb ← Abb* Bbb
         #
-        smul_impl2!(Abb, Bb, tA, tB, uplo, side)
+        smul_impl2!(Abb, Bb, tA, uplo, side)
         #
         #   Bn ← Anb Bb + Bn
         #
-        mul_add_impl!(Anb, Bb, Bn, tA, tB, tA)
+        mul_add_impl!(Anb, Bb, Bn, tA, Val(:N), tA)
     end
 
     return B
 end
 
-function smul_impl2!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:N}, tB::Val{:N}, uplo::Val{:L}, side::Val{:R})
+function smul_impl2!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:N}, uplo::Val{:L}, side::Val{:R})
     if B isa AbstractVector
          @assert size(A, 1) == size(A, 2) == length(B)
     else
@@ -629,13 +620,13 @@ function smul_impl2!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:N}, tB::Va
         #
         #   Bj ← Bn Anj + Bj
         #
-        mul_add_impl!(Bn, Anj, Bj, tB, tA, tA)
+        mul_add_impl!(Bn, Anj, Bj, Val(:N), tA, tA)
     end
 
     return B
 end
 
-function smul_impl!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:N}, tB::Val{:N}, uplo::Val{:L}, side::Val{:R}, blocksize::Int = DEFAULT_BLOCK_SIZE)
+function smul_impl!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:N}, uplo::Val{:L}, side::Val{:R}, blocksize::Int = DEFAULT_BLOCK_SIZE)
     if B isa AbstractVector
         @assert size(A, 1) == size(A, 2) == length(B)
     else
@@ -666,17 +657,17 @@ function smul_impl!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:N}, tB::Val
         #
         #   Bb ← Bn Anb + Bb
         #
-        mul_add_impl!(Bn, Anb, Bb, tB, tA, tA)
+        mul_add_impl!(Bn, Anb, Bb, Val(:N), tA, tA)
         #
         #   Bb ← Bb Abb*
         #
-        smul_impl2!(Abb, Bb, tA, tB, uplo, side)
+        smul_impl2!(Abb, Bb, tA, uplo, side)
     end
 
     return B
 end
 
-function smul_impl2!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:N}, tB::Val{:N}, uplo::Val{:U}, side::Val{:R})
+function smul_impl2!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:N}, uplo::Val{:U}, side::Val{:R})
     if B isa AbstractVector
         @assert size(A, 1) == size(A, 2) == length(B)
     else
@@ -705,17 +696,17 @@ function smul_impl2!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:N}, tB::Va
         #
         #   Bj ← Bn Anj + Bj
         #
-        mul_add_impl!(Bn, Anj, Bj, tB, tA, tA)
+        mul_add_impl!(Bn, Anj, Bj, Val(:N), tA, tA)
         #
         #   Bj ← Bj Ajj*
         #
-        smul_impl2!(Ajj, Bj, tA, tB, uplo, side)
+        smul_impl2!(Ajj, Bj, tA, uplo, side)
     end
 
     return B
 end
 
-function smul_impl!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:N}, tB::Val{:N}, uplo::Val{:U}, side::Val{:R}, blocksize::Int = DEFAULT_BLOCK_SIZE)
+function smul_impl!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:N}, uplo::Val{:U}, side::Val{:R}, blocksize::Int = DEFAULT_BLOCK_SIZE)
     if B isa AbstractVector
         @assert size(A, 1) == size(A, 2) == length(B)
     else
@@ -746,11 +737,11 @@ function smul_impl!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:N}, tB::Val
         #
         #   Bb ← Bn Anb + Bb
         #
-        mul_add_impl!(Bn, Anb, Bb, tB, tA, tA)
+        mul_add_impl!(Bn, Anb, Bb, Val(:N), tA, tA)
         #
         #   Bb ← Bb Abb*
         #
-        smul_impl2!(Abb, Bb, tA, tB, uplo, side)
+        smul_impl2!(Abb, Bb, tA, uplo, side)
     end
 
     return B
@@ -878,7 +869,7 @@ function mul_add_impl!(A::AbstractVector, B::AbstractMatrix, C::AbstractVector, 
         #
         #   Cj ← A Bj + Cj
         #
-        mul_impl!(A, Bj, Cj, tA, tB, dual)
+        mul_add_impl!(A, Bj, Cj, tA, tB, dual)
     end
 
     return C
@@ -962,6 +953,10 @@ end
 # Jacobi Algorithm #
 # ---------------- #
 
+function jacobi(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val, side::Val; kw...)
+    return jacobi!(A, Array(B), tA, side; kw...)
+end
+
 function jacobi!(A::AbstractMatrix{T}, B::AbstractVecOrMat{T}, tA::Val, side::Val; kw...) where {T}
     jacobi_impl!(A, B, Array{T}(undef, size(B)), tA, side)
     return B
@@ -975,12 +970,12 @@ function jacobi_impl!(A::AbstractMatrix{T}, B::AbstractVecOrMat{T}, C::AbstractV
             #
             #   B ← A C + B
             #
-            mul_add_impl!(A, C, B, tA, Val(:N))
+            mul_add_impl!(A, C, B, tA, Val(:N), tA)
         else
             #
             #   B ← C A + B
             #
-            mul_add_impl!(C, A, B, Val(:N), tA)
+            mul_add_impl!(C, A, B, Val(:N), tA, tA)
         end
         #
         #   B ≈ C
@@ -995,13 +990,34 @@ end
 # Newton's Algorithm #
 # ------------------ #
 
-function newton(A::AbstractArray{T}...; kw...) where {T}
-    return newton!(map(Array{T}, A)...; kw...)
+function horner(x::AbstractVector, A::AbstractArray...)
+    return horner!(x, map(Array, A)...)
+end
+
+function horner!(x::AbstractVector, A::AbstractArray...)
+    m = length(A)
+    n = length(first(A))
+
+    for i in m - 1:-1:1
+        #
+        #   Ai ← Ai+1 x + Ai
+        #
+        mul_add_impl!(reshape(A[i + 1], :, n), x, reshape(A[i], :), Val(:N), Val(:N), Val(:N))
+    end
+
+    return A
+end
+
+function newton(A::AbstractVector; kw...)
+    return Vector(A)
+end
+
+function newton(A::AbstractArray...; kw...)
+    return newton!(map(Array, A)...; kw...)
 end
 
 function newton!(A::AbstractArray{T}...; kw...) where {T}
-    m = length(A)
-    n = length(A[1])
+    n = length(first(A))
 
     J = Matrix{T}(undef, n, n)
     x = Vector{T}(undef, n)
@@ -1012,29 +1028,85 @@ function newton!(A::AbstractArray{T}...; kw...) where {T}
 
     for _ in 1:n + 1
         #
-        #   A1 ← f(x)
-        #
-        #   A2 ← Df(x)
+        #   A₁ ←  f(x)
+        #   A₂ ← Df(x)
         # 
-        for i in m - 1:-1:1
-            #
-            #   Ai ← Ai+1 x + Ai
-            #
-            mul_add_impl!(reshape(A[i + 1], :, n), x, reshape(A[i], :), Val(:N), Val(:N))
-        end
+        horner!(x, A...)
         #
-        #   x ≈ A1
+        #   x ≈ A₁
         #
         all(i -> isapprox(x[i], A[1][i]; kw...), 1:n) && break
         #
-        #   J ← A2
+        #   J ← A₂
         #
         copyto!(J, A[2])
         #
-        #   x ← J* A1
+        #   x ← J* A₁
         #
         lmul!(slu!(J), copyto!(x, A[1]))
     end
 
     return x
+end
+
+# -------------------- #
+# Sinkhorn's Algorithm #
+# -------------------- #
+
+function softmin(beta::Real)
+    return a -> softmin(a, beta)
+end
+
+function softmin(a::MinPlus, beta::Real)
+    return exp(-beta * parent(a))
+end
+
+function softmin(A::AbstractArray, beta::Real)
+    return map(softmin(beta), A)
+end
+
+function sinkhorn(C::AbstractMatrix{T}, A::AbstractVecOrMat, B::AbstractVecOrMat, beta::Real; kw...) where {T <: MinPlus}
+    return sinkhorn(slu(softmin(C)), A, B, beta; kw...)
+end
+
+function sinkhorn(K::AbstractStar{T}, A::AbstractVector, B::AbstractVector, beta::Real; kw...) where {T <: Real}
+    @assert size(K, 1) == length(A)
+    @assert size(K, 1) == length(B)
+
+    n = length(A)
+
+    E = Vector{T}(undef, n)
+    F = Vector{T}(undef, n)
+    G = Vector{T}(undef, n)
+    #
+    # F ← 1
+    # G ← 1
+    #
+    fill!(F, one(T))
+    fill!(G, one(T))
+
+    for _ in 1:1000
+        #
+        #   E ← F
+        #
+        copyto!(E, F)
+        #
+        #   F ← K G \ A
+        #
+        lmul!(K, copyto!(F, G)) .\= A
+        #
+        #   G ← Kᵀ F \ B
+        #
+        rmul!(copyto!(G, F), K) .\= B
+        #
+        #   F ≈ E
+        #
+        all(i -> isapprox(F[i], E[i]; kw...), 1:n) && break
+    end
+    #
+    #   E ← 1/β (A log F + B log G)
+    #
+    @. E = (A * log(F) + B * log(G)) / beta
+
+    return MinPlus(sum(E)) 
 end
