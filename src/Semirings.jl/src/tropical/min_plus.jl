@@ -1,15 +1,16 @@
 struct MinPlusSemiring <: AbstractCommutativeSemiring end
 
 """
-    MinPlus{T} <: Number
+    MinPlus{T} <: AbstractSemiringNumber{T}
 
-The semiring (ℝ ∪ {-∞, +∞}, ∧, +, +∞, 0).
+The *-autonomous quantale ``([-\\infty, +\\infty], \\geq, +, 0)``.
 
-  - elements are extended real numbers: a ∈ ℝ ∪ {-∞, +∞}
-  - addition is minimum: a ∧ b
-  - multiplication is addition: a + b
+  - elements are extended real numbers: a ∈ ``[-\\infty, +\\infty]``
+  - the ordering is backwards: ``a \\geq b``
+  - multiplication is addition: ``a + b``
+  - the multiplicative identity is ``0``
 
-It is sometimes called the tropical semiring.
+This quantale is sometimes called the tropical semiring.
 """
 const MinPlus = SemiringNumber{MinPlusSemiring}
 

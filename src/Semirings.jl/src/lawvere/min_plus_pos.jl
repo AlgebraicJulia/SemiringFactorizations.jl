@@ -3,13 +3,14 @@ struct MinPlusPosSemiring <: AbstractIntegralSemiring end
 """
     MinPlusPos{T} <: Number
 
-The semiring (ℝ⁺ ∪ {+∞}, ∧, +, +∞, 0).
+The quantale ``([0, +\\infty], \\geq, +, 0)``.
 
-  - elements are extended nonnegative real numbers: a ∈ ℝ⁺ ∪ {+∞}
-  - addition is minimum: a ∧ b
-  - multiplication is addition: a + b
+  - elements are nonneegative extended real numbers: a ∈ ``[0, +\\infty]``
+  - the ordering backwards: ``a \\geq b``
+  - multiplication is addition: ``a + b``
+  - the multiplicative identity is ``0``
 
-When P = 1, it is called the Lawvere quantale.
+This quantale is sometimes called the Lawvere quantale.
 """
 const MinPlusPos{T} = SemiringNumber{MinPlusPosSemiring, T}
 

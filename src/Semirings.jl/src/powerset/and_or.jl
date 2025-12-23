@@ -3,12 +3,14 @@ struct AndOrLattice <: AbstractLattice end
 """
     AndOr{T} <: Number
 
-The semiring (2ⁿ, ∩, ∪, 2ⁿ, ∅).
+The *-autonomous quantale ``(2^n, \\supseteq, \\cup, \\emptyset)``.
 
-  - elements are subsets: a ∈ 2ⁿ
-  - addition is intersection: a ∩ b
-  - multiplication is union: a ∪ b
+  - elements are subsets: ``a \\in 2^n``
+  - the ordering is subset exclusion: ``a \\supseteq b``
+  - multiplication is union: ``a \\cup b``
+  - the multiplicative identity is ``\\emptyset``
 
+This quantale is sometimes called the powerset semiring.
 """
 const AndOr = SemiringNumber{AndOrLattice}
 

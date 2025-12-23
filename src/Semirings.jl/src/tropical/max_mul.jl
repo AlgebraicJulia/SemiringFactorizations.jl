@@ -1,15 +1,16 @@
 struct MaxMulSemiring <: AbstractCommutativeSemiring end
 
 """
-    MaxMul{T} <: Number
+    MaxMul{T} <: AbstractSemiringNumber{T}
 
-The semiring (ℝ⁺ ∪ {+∞}, ∨, ×, 0, 1).
+The *-autonomous quantale ``([0, +\\infty], \\leq, \\times, 0)``.
 
-  - elements are nonnegative extended real numbers: a ∈ ℝ⁺ ∪ {+∞}
-  - addition is maximum: a ∨ b
-  - multiplication is standard: a × b
+  - elements are nonnegative extended real numbers: a ∈ ``[0, +\\infty]``
+  - the ordering is standard: ``a \\leq b``
+  - multiplication is standard: ``a \\times b``
+  - the multiplicative identity is ``1``
 
-It is sometimes called the Viterbi semiring.
+This quantale is sometimes called the Viterbi semiring.
 """
 const MaxMul = SemiringNumber{MaxMulSemiring}
 

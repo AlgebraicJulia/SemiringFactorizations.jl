@@ -1,14 +1,16 @@
 struct OrAndLattice <: AbstractLattice end
 
 """
-    OrAnd{T} <: Number
+    OrAnd{T} <: AbstractSemiringNumber{T}
 
-The semiring (2ⁿ, ∪, ∩, ∅, 2ⁿ).
+The *-autonomous quantale ``(2^n, \\subseteq, \\cap, 2^n)``.
 
-  - elements are subsets: a ∈ 2ⁿ
-  - addition is union: a ∪ b
-  - multiplication is intersection: a ∩ b
+  - elements are subsets: ``a \\in 2^n``
+  - the ordering is subset inclusion: ``a \\subseteq b``
+  - multiplication is intersection: ``a \\cap b``
+  - the multiplicative identity is ``2^n``
 
+This quantale is sometimes called the powerset semiring.
 """
 const OrAnd = SemiringNumber{OrAndLattice}
 

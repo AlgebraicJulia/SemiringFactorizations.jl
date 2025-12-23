@@ -36,7 +36,7 @@ function wrapcopy(::Type{T}, A::Transpose) where {T}
     return transpose(wrapcopy(T, parent(A)))
 end
 
-export SemiringNumber, AndOr, OrAnd, MaxPlus, MinPlus, MaxMul, MinMul, ⅋
+export SemiringNumber, AndOr, OrAnd, MaxPlus, MinPlus, MaxMul, ⅋
 export StrictLowerTriangular
 export StarLU, StarTriangular, star, slu
 export SymbolicStarLU

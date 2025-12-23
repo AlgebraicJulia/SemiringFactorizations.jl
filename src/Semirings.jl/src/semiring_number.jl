@@ -1,3 +1,41 @@
+"""
+    AbstractSemiringNumber{T} <: Number
+
+An element of a unital quantale.
+
+## Unital Quantales
+
+A unital quantale is a quadruple ``(R, \\leq, \\times, 1)``, where
+
+  - ``(R, \\leq)`` is a complete lattice
+  - ``(R, \\times, 1)`` is a monoid
+  - multiplication (``\\times``) distributes over joins
+
+Each concrete subtype `T <: AbstractSemiringNumber` defines a unital quantale
+whose elements are objects of type `T`. Given such a subtype, we may construct
+the following elements
+
+  - `typemin(T)`: a bottom element
+  - `typemax(T)`: a top element
+  - `one(T)`: a multiplicative identity
+
+For all pairs of objects `a` and `b` of type `T`, we may compute the following
+elements
+
+  - `star(a)`: the Kleene star of `a`
+  - `a + b`: the join of `a` and `b`
+  - `a & b`: the meet of `a` and `b`
+  - `b / a`: the left residual of `b` by `a`
+  - `a \\ b`: the right residual of `b` by `a`   
+
+## *-Autonomous Quantales
+
+If `T` is a *-autonomous quantale, then some additional operations are available.
+
+  - `a'`: the negation of `a`
+  - `a ⅋ b` the "par" of `a` and `b`
+
+"""
 abstract type AbstractSemiringNumber{T} <: Number end
 
 struct SemiringNumber{A <: AbstractSemiring, T} <: AbstractSemiringNumber{T}
@@ -158,47 +196,77 @@ end
 #
 #
 
+"""
+    zero(::Type{T}) where {T <: AbstractSemiringNumber}
+
+Construct an additive identity of type `T`.
+"""
 function Base.zero(::Type{T}) where {T <: SemiringNumber}
     return zero_impl(T, Val(:N))
 end
 
+"""
+    zero(::T) where {T <: AbstractSemiringNumber}
+
+Construct an additive identity of type `T`.
+"""
 function Base.zero(::T) where {T <: SemiringNumber}
     return zero(T)
 end
 
+"""
+    one(::Type{T}) where {T <: AbstractSemiringNumber}
+
+Construct a multiplicative identity of type `T`.
+"""
 function Base.one(::Type{T}) where {T <: SemiringNumber}
     return one_impl(T, Val(:N))
 end
 
+"""
+    one(::T) where {T <: AbstractSemiringNumber}
+
+Construct a multiplicative identity of type `T`.
+"""
 function Base.one(::T) where {T <: SemiringNumber}
     return one(T)
 end
 
 """
-    star(a)
+    star(a::AbstractSemiringNumber)
 
 Compute the Kleene star ``a^*``, equal to the
 infinite sum
 
 ```math
-    a^* = 1 + a + a^2 + \\cdots
+    a^* = 1 \\vee a \\vee a^2 + \\cdots
 ```
 
 ``a^*`` is the least solution to the fixed-point
 equation
 
 ```math
-    x = a x + 1.
+    x = a \\times x \\vee 1.
 ```
 """
 function star(a)
     return star_impl(a)
 end
 
+"""
+    conj(a::AbstractSemiringNumber)
+
+Compute the conjugate ``a^\\bot``.
+"""
 function Base.conj(a::SemiringNumber)
     return id_impl(a, Val(:C))
 end
 
+"""
+    +(a::AbstractSemiringNumber, b::AbstractSemiringNumber)
+
+Compute the join ``a \\vee b``.
+"""
 function Base.:+(a::SemiringNumber, b::SemiringNumber)
     return add_impl(a, b, Val(:N))
 end
@@ -219,6 +287,11 @@ function Base.FastMath.add_fast(a::StaticInt, b::SemiringNumber)
     return a + b
 end
 
+"""
+    *(a::AbstractSemiringNumber, b::AbstractSemiringNumber)
+
+Compute the product ``a \\times b``.
+"""
 function Base.:*(a::SemiringNumber, b::SemiringNumber)
     return mul_impl(a, b, Val(:N), Val(:N), Val(:N))
 end
@@ -267,36 +340,62 @@ function Base.isapprox(a::SemiringNumber{A}, b::SemiringNumber{A}; kw...) where 
     return isapprox(parent(a), parent(b); kw...)
 end
 
+"""
+    typemin(::Type{T}) where {T <: AbstractSemiringNumber}
+
+Compute a bottom element of type `T`. This is equal
+to the additive identity.
+"""
 function Base.typemin(::Type{T}) where {T <: SemiringNumber}
     return zero(T)
 end
 
+"""
+    typemin(::T) where {T <: AbstractSemiringNumber}
+
+Compute a bottom element of type `T`. This is equal
+to the additive identity.
+"""
 function Base.typemin(::T) where {T <: SemiringNumber}
     return typemin(T)
 end
 
+"""
+    typemax(::Type{T}) where {T <: AbstractSemiringNumber}
+
+Compute a top element of type `T`.
+"""
 function Base.typemax(::Type{T}) where {T <: SemiringNumber}
     return zero_impl(T, Val(:C))
 end
 
+"""
+    typemax(::T) where {T <: AbstractSemiringNumber}
+
+Compute a top element of type `T`.
+"""
 function Base.typemax(::T) where {T <: SemiringNumber}
     return typemax(T)
 end
 
 """
-    &(a, b)
+    &(a::AbstractSemiringNumber, b::AbstractSemiringNumber)
 
-Compute the infimum ``a \\wedge b``, i.e.
-the greatest solution ``x`` to the equation
-
-```math
-    x \\leq a \\text{and} x \\leq b.
-```
+Compute the meet ``a \\wedge b``.
 """
 function Base.:&(a::Union{SemiringNumber, AbstractArray{<:SemiringNumber}}, b::Union{SemiringNumber, AbstractArray{<:SemiringNumber}})
     return add_impl(a, b, Val(:C))
 end
 
+"""
+    ⅋(a::AbstractSemiringNumber, b::AbstractSemiringNumber)
+
+Compute the inverse-sum ``a ⅋ b``, i.e. the product
+
+```math
+    (b^\\bot a^\\bot)^\\bot
+```
+"""
 function ⅋(a, b)
     return mul_impl(a, b, Val(:N), Val(:N), Val(:C))
 end
@@ -314,9 +413,9 @@ function ⅋(a::Adjoint{<:SemiringNumber}, b::Adjoint{<:SemiringNumber})
 end
 
 """
-    \\(a, b)
+    \\(a::AbstractSemiringNumber, b::AbstractSemiringNumber)
 
-Compute the residual ``a \\ b``, i.e.
+Compute the right residual ``a \\ b``, i.e.
 the greatest solution ``x`` to the equation
 
 ```math
@@ -352,9 +451,9 @@ function Base.:\(a::AbstractMatrix{<:SemiringNumber}, b::SemiringNumber)
 end
 
 """
-    /(b, a)
+    /(b::AbstractSemiringNumber, a::AbstractSemiringNumber)
 
-Compute the residual ``b / a``, i.e.
+Compute the left residual ``b / a``, i.e.
 the greatest solution ``x`` to the equation
 
 ```math

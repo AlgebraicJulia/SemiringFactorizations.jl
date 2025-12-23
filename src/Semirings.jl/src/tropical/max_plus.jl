@@ -1,15 +1,16 @@
 struct MaxPlusSemiring <: AbstractCommutativeSemiring end
 
 """
-    MaxPlus{T} <: Number
+    MaxPlus{T} <: AbstractSemiringNumber{T}
 
-The semiring (ℝ ∪ {-∞, +∞}, ∨, +, -∞, 0).
+The *-autonomous quantale ``([-\\infty, +\\infty], \\leq, +, 0)``.
 
-  - elements are extended real numbers: a ∈ ℝ ∪ {-∞, +∞}
-  - addition is maximum: a ∨ b
-  - multiplication is addition: a + b
+  - elements are extended real numbers: a ∈ ``[-\\infty, +\\infty]``
+  - the ordering is standard: ``a \\leq b``
+  - multiplication is addition: ``a + b``
+  - the multiplicative identity is ``0``
 
-It is sometimes called the arctic semiring.
+This quantale is sometimes called the arctic semiring.
 """
 const MaxPlus = SemiringNumber{MaxPlusSemiring}
 
