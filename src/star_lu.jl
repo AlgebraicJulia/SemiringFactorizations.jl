@@ -26,8 +26,20 @@ function Base.size(F::StarTriangular)
     return size(parent(F))
 end
 
-function Semirings.add_impl(A::AbstractMatrix, B::AbstractMatrix, dual::Val{:C})
-    return A .& B
+function Semirings.add_impl(A::AbstractMatrix, B::AbstractMatrix, dual::Val)
+    C = @. add_impl(A, B, dual)
+    return C
+end
+
+function Semirings.mul_impl(A::AbstractRowVector, B::Number, tA::Val{:C}, tB::Val, dual::Val)
+    T = transpose(A)
+    C = @. mul_impl(T, B, tA, tB, dual)
+    return C
+end
+
+function Semirings.mul_impl(A::Number, B::AbstractVector, tA::Val, tB::Val{:C}, dual::Val)
+    C = @. mul_impl(A, B, tA, tB, dual)
+    return transpose(C)
 end
 
 # -------------------- #
@@ -174,20 +186,20 @@ function smul_impl2!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:C}, uplo::
 
     @inbounds for j in 1:m, i in n:-1:1
         #
-        #   A = [ Ann   ]
-        #       [ Ain 0 ]
+        #   A = [ 0       ]
+        #       [ Ani Ann ]
         #
-        Ain = @view A[i, 1:i - 1]
+        Ani = @view A[i + 1:n, i]
         #
-        #   B = [ Bn ]
-        #       [ Bi ]
+        #   B = [ Bi ]
+        #       [ Bn ]
         #
-        Bn = @view B[1:i - 1, j]
-        Bi =       B[i,       j]
+        Bi = @view B[i,       j]
+        Bn = @view B[i + 1:n, j]
         #
-        #   Bn ← Ain \ Bi & Bn
+        #   Bi ← Ani \ Bn & Bi
         #
-        mul_add_impl!(Ain, Bi, Bn, tA, Val(:N), tA)
+        mul_add_impl!(Ani, Bn, Bi, tA, Val(:N), tA)
     end
 
     return B
@@ -202,30 +214,30 @@ function smul_impl!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:C}, uplo::V
         size = min(blocksize, stop)
         strt = stop - size + 1
         #
-        #   A = [ Ann 0   ]
-        #       [ Abn Abb ]
+        #   A = [ Abb 0   ]
+        #       [ Anb Ann ]
         #
-        Abb = @view A[strt:stop, strt:stop]
-        Abn = @view A[strt:stop, 1:strt - 1]
+        Anb = @view A[stop + 1:n, strt:stop]
+        Abb = @view A[strt:stop,  strt:stop]
         #
-        #   B = [ Bn ]
-        #       [ Bb ]
+        #   B = [ Bb ]
+        #       [ Bn ]
         #
         if B isa AbstractVector
             Bb = @view B[strt:stop]
-            Bn = @view B[1:strt - 1]
+            Bn = @view B[stop + 1:n]
         else
             Bb = @view B[strt:stop,  :]
-            Bn = @view B[1:strt - 1, :]
+            Bn = @view B[stop + 1:n, :]
         end
         #
-        #   Bb ← Abb* \ Bbb
+        #   Bb ← Anb \ Bn & Bb
+        #
+        mul_add_impl!(Anb, Bn, Bb, tA, Val(:N), tA)
+        #
+        #   Bb ← Abb* \ Bb
         #
         smul_impl2!(Abb, Bb, tA, uplo, side)
-        #
-        #   Bn ← Abn \ Bb & Bn
-        #
-        mul_add_impl!(Abn, Bb, Bn, tA, Val(:N), tA)
     end
 
     return B
@@ -239,25 +251,25 @@ function smul_impl2!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:C}, uplo::
 
     @inbounds for j in 1:m, i in 1:n
         #
-        #   A = [ Aii Ain ]
-        #       [     Ann ]
+        #   A = [ Ann Ani ]
+        #       [     Aii ]
         #
+        Ani = @view A[1:i - 1, i]
         Aii =       A[i,       i]
-        Ain = @view A[i, i + 1:n]
         #
-        #   B = [ Bi ]
-        #       [ Bn ]
+        #   B = [ Bn ]
+        #       [ Bi ]
         #
+        Bn = @view B[1:i - 1, j]
         Bi = @view B[i,       j]
-        Bn = @view B[i + 1:n, j]
+        #
+        #   Bi ← Ani \ Bn + Bi
+        #
+        mul_add_impl!(Ani, Bn, Bi, tA, Val(:N), tA)
         #
         #   Bi ← Aii* \ Bi
         #
         smul_impl2!(Aii, Bi, tA, uplo, side)
-        #
-        #   Bn ← Ain \ Bi + Bn
-        #
-        mul_add_impl!(Ain, Bi[], Bn, tA, Val(:N), tA)
     end
 
     return B
@@ -272,30 +284,30 @@ function smul_impl!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:C}, uplo::V
         size = min(blocksize, n - strt + 1)
         stop = strt + size - 1
         #
-        #   A = [ Abb Abn ]
-        #       [     Ann ]
+        #   A = [ Ann Anb ]
+        #       [     Abb ]
         #
-        Abb = @view A[strt:stop, strt:stop]
-        Abn = @view A[strt:stop, stop + 1:n]
+        Anb = @view A[1:strt - 1, strt:stop]
+        Abb = @view A[strt:stop,  strt:stop]
         #
-        #   B = [ Bb ]
-        #       [ Bn ]
+        #   B = [ Bn ]
+        #       [ Bb ]
         #
         if B isa AbstractVector
+            Bn = @view B[1:strt - 1]
             Bb = @view B[strt:stop]
-            Bn = @view B[stop + 1:n]
         else
+            Bn = @view B[1:strt - 1, :]
             Bb = @view B[strt:stop,  :]
-            Bn = @view B[stop + 1:n, :]
         end
+        #
+        #   Bb ← Anb \ Bn & Bb
+        #
+        mul_add_impl!(Anb, Bn, Bb, tA, Val(:N), tA)
         #
         #   Bb ← Abb* \ Bb
         #
         smul_impl2!(Abb, Bb, tA, uplo, side)
-        #
-        #   Bn ← Abn \ Bb & Bn
-        #
-        mul_add_impl!(Abn, Bb, Bn, tA, Val(:N), tA)
     end
 
     return B
@@ -312,24 +324,24 @@ function smul_impl2!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:C}, uplo::
 
     @inbounds for j in 1:n
         #
-        #   A = [ Ann   ]
-        #       [ Ajn 0 ]
+        #   A = [         ]
+        #       [ Anj Ann ]
         #
-        Ajn = @view A[j, 1:j - 1]
+        Anj = @view A[j + 1:n, j]
         #
-        #   B = [ Bn Bj ]
+        #   B = [ Bj Bn ]
         #
         if B isa AbstractVector
-            Bj = @view B[j]
-            Bn = @view B[1:j - 1]
+            Bj =       B[j      ]
+            Bn = @view B[j + 1:n]
         else
-            Bj = @view B[:, j]
-            Bn = @view B[:, 1:j - 1]
+            Bj = @view B[:, j      ]
+            Bn = @view B[:, j + 1:n]
         end
         #
-        #   Bj ← Bn / Ajn & Bj
+        #   Bn ← Bj / Anj & Bn
         #
-        mul_add_impl!(Bn, Ajn, Bj, Val(:N), tA, tA)
+        mul_add_impl!(Bj, Anj, Bn, Val(:N), tA, tA)
     end
 
     return
@@ -348,29 +360,29 @@ function smul_impl!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:C}, uplo::V
         size = min(blocksize, n - strt + 1)
         stop = strt + size - 1
         #
-        #   A = [ Ann     ]
-        #       [ Abn Abb ]
+        #   A = [ Abb     ]
+        #       [ Anb Ann ]
         #
-        Abb = @view A[strt:stop, strt:stop]
-        Abn = @view A[strt:stop, 1:strt - 1]
+        Abb = @view A[strt:stop,  strt:stop]
+        Anb = @view A[stop + 1:n, strt:stop]
         #
-        #   B = [ Bn Bb ]
+        #   B = [ Bb Bn ]
         #
         if B isa AbstractVector
-            Bb = @view B[strt:stop]
-            Bn = @view B[1:strt - 1]
+            Bb = @view B[strt:stop ]
+            Bn = @view B[stop + 1:n]
         else
-            Bb = @view B[:, strt:stop]
-            Bn = @view B[:, 1:strt - 1]
+            Bb = @view B[:, strt:stop ]
+            Bn = @view B[:, stop + 1:n]
         end
-        #
-        #   Bb ← Bn / Abn & Bb
-        #
-        mul_add_impl!(Bn, Abn, Bb, Val(:N), tA, tA)
         #
         #   Bb ← Bb / Abb*
         #
         smul_impl2!(Abb, Bb, tA, uplo, side)
+        #
+        #   Bn ← Bb / Anb & Bn
+        #
+        mul_add_impl!(Bb, Anb, Bn, Val(:N), tA, tA)
     end
 
     return B
@@ -387,29 +399,29 @@ function smul_impl2!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:C}, uplo::
 
     @inbounds for j in n:-1:1
         #
-        #   A = [ Ajj Ajn ]
-        #       [     Ann ]
+        #   A = [ Ann Anj ]
+        #       [     Ajj ]
         #
+        Anj = @view A[1:j - 1, j]
         Ajj =       A[j,       j]
-        Ajn = @view A[j, j + 1:n]
         #
-        #   B = [ Bj  Bn  ]
+        #   B = [ Bn  Bj ]
         #
         if B isa AbstractVector
-            Bj = @view B[j]
-            Bn = @view B[j + 1:n]
+            Bn = @view B[1:j - 1]
+            Bj = @view B[j      ]
         else
-            Bj = @view B[:, j]
-            Bn = @view B[:, j + 1:n]
+            Bn = @view B[:, 1:j - 1]
+            Bj = @view B[:, j      ]
         end
         #
-        #   Bj ← Bn / Ajn & Bj
-        #
-        mul_add_impl!(Bn, Ajn, Bj, Val(:N), tA, tA)
-        #
-        #   Bb ← Bb / Ajj*
+        #   Bj ← Bj / Ajj*
         #
         smul_impl2!(Ajj, Bj, tA, uplo, side)
+        #
+        #   Bn ← Bj / Anj & Bn
+        #
+        mul_add_impl!(Bj, Anj, Bn, Val(:N), tA, tA)
     end
 
     return B
@@ -428,29 +440,29 @@ function smul_impl!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:C}, uplo::V
         size = min(blocksize, stop)
         strt = stop - size + 1
         #
-        #   A = [ Abb Abn ]
-        #       [     Ann ]
+        #   A = [ Ann Anb ]
+        #       [     Abb ]
         #
-        Abb = @view A[strt:stop, strt:stop]
-        Abn = @view A[strt:stop, stop + 1:n]
+        Anb = @view A[1:strt - 1, strt:stop]
+        Abb = @view A[strt:stop,  strt:stop]
         #
-        #   B = [ Bb Bn ]
+        #   B = [ Bn Bb ]
         #
         if B isa AbstractVector
-            Bb = @view B[strt:stop]
-            Bn = @view B[stop + 1:n]
+            Bn = @view B[1:strt - 1]
+            Bb = @view B[strt:stop ]
         else
-            Bb = @view B[:, strt:stop]
-            Bn = @view B[:, stop + 1:n]
+            Bn = @view B[:, 1:strt - 1]
+            Bb = @view B[:, strt:stop ]
         end
-        #
-        #   Bb ← Bn / Abn & Bb
-        #
-        mul_add_impl!(Bn, Abn, Bb, Val(:N), tA, tA)
         #
         #   Bb ← Bb / Abb*
         #
         smul_impl2!(Abb, Bb, tA, uplo, side)
+        #
+        #   Bn ← Bb / Anb & Bn
+        #
+        mul_add_impl!(Bb, Anb, Bn, Val(:N), tA, tA)
     end
 
     return B
@@ -681,8 +693,8 @@ function smul_impl2!(A::AbstractMatrix, B::AbstractVecOrMat, tA::Val{:N}, uplo::
         #   A = [ Ann Anj ]
         #       [     Ajj ]
         #
-        Ajj =       A[j,       j]
         Anj = @view A[1:j - 1, j]
+        Ajj =       A[j,       j]
         #
         #   B = [ Bn Bj ]
         #
@@ -751,16 +763,29 @@ end
 # Matrix Multiplication #
 # --------------------- #
 
-function Semirings.mul_impl(A::AbstractMatrix{T}, B::AbstractMatrix{T}, tA::Val, tB::Val, dual::Val) where {T <: SemiringNumber}
-    return mul_add_impl!(A, B, fill(typemax(T), size(A, 2), size(B, 2)), tA, tB, dual)
+function Semirings.mul_impl(A::AbstractMatrix{T}, B::AbstractMatrix{T}, tA::Val{R}, tB::Val{S}, dual::Val) where {T <: SemiringNumber, R, S}
+    m = R == :N ? size(A, 1) : size(A, 2)
+    n = S == :N ? size(B, 2) : size(B, 1)
+    return mul_add_impl!(A, B, fill(zero_impl(T, dual), m, n), tA, tB, dual)
 end
 
-function Semirings.mul_impl(A::AbstractMatrix{T}, B::AbstractVector{T}, tA::Val, tB::Val, dual::Val) where {T <: SemiringNumber}
-    return mul_add_impl!(A, B, fill(typemax(T), size(A, 2)), tA, tB, dual)
+function Semirings.mul_impl(A::AbstractMatrix{T}, B::AbstractVector{T}, tA::Val{R}, tB::Val{:N}, dual::Val) where {T <: SemiringNumber, R}
+    m = R == :N ? size(A, 1) : size(A, 2)
+    return mul_add_impl!(A, B, fill(zero_impl(T, dual), m), tA, tB, dual)
 end
 
-function Semirings.mul_impl(A::AbstractRowVector{T}, B::AbstractVector{T}, tA::Val, tB::Val, dual::Val) where {T <: SemiringNumber}
-    return mul_add_impl(parent(A), B, typemax(T), tA, tB, dual)
+function Semirings.mul_impl(A::AbstractRowVector{T}, B::AbstractVector{T}, tA::Val, tB::Val{:N}, dual::Val) where {T <: SemiringNumber}
+    return mul_add_impl(transpose(A), B, zero_impl(T, dual), tA, tB, dual)
+end
+
+function Semirings.mul_impl(A::AbstractRowVector{T}, B::AbstractRowVector{T}, tA::Val{:C}, tB::Val{:N}, dual::Val) where {T <: SemiringNumber}
+    m = size(A, 2)
+    n = size(B, 2)
+    return mul_add_impl(transpose(A), transpose(B), fill(zero_impl(T, dual), m, n), tA, tB, dual)
+end
+
+function Semirings.mul_impl(A::AbstractRowVector{T}, B::AbstractRowVector{T}, tA::Val{:N}, tB::Val{:C}, dual::Val) where {T <: SemiringNumber}
+    return mul_add_impl(transpose(A), transpose(B), zero_impl(T, dual), tA, tB, dual)
 end
 
 function Semirings.mul_add_impl(A, B, C::AbstractVecOrMat, tA::Val, tB::Val, dual::Val)
@@ -891,7 +916,7 @@ function mul_add_impl!(A::AbstractVector, B::AbstractMatrix, C::AbstractVector, 
     return C
 end
 
-function mul_add_impl!(A::AbstractVector, B::AbstractVector, C::AbstractMatrix, tA::Val{:N}, tB::Val, dual::Val)
+function mul_add_impl!(A::AbstractVector, B::AbstractVector, C::AbstractMatrix, tA::Val, tB::Val, dual::Val)
     @assert size(C, 1) == length(A)
     @assert size(C, 2) == length(B)
 
@@ -905,6 +930,10 @@ function mul_add_impl!(A::AbstractVector, B::AbstractVector, C::AbstractMatrix, 
     end 
 
     return C
+end
+
+function mul_add_impl!(A::AbstractScalar, B::AbstractVector, C::AbstractVector, tA::Val, tB::Val, dual::Val)
+    return mul_add_impl!(A[], B, C, tA, tB, dual)
 end
 
 function mul_add_impl!(A::Number, B::AbstractVector, C::AbstractVector, tA::Val, tB::Val, dual::Val)

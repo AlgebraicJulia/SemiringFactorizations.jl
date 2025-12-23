@@ -97,11 +97,15 @@ function Semirings.star(A::UpperTriangular)
 end
 
 function Base.:*(A::AbstractStar{T}, B::AbstractVecOrMat) where {T}
-    return lmul!(A, wrapcopy(T, B))
+    return lmul!(A, Array(B))
 end
 
 function Base.:*(B::AbstractMatrix, A::AbstractStar{T}) where {T}
-    return rmul!(wrapcopy(T, B), A)
+    return rmul!(Array(B), A)
+end
+
+function Base.:*(B::AbstractRowVector, A::AbstractStar{T}) where {T}
+    return transpose(rmul!(Array(transpose(B)), A))
 end
 
 function Base.:*(A::AbstractStar, B::Adjoint)
@@ -121,11 +125,15 @@ function Semirings.:⅋(B::AbstractMatrix, A::AdjointStar)
 end
 
 function Base.:\(A::AbstractStar{T}, B::AbstractVecOrMat) where {T}
-    return ldiv!(A, wrapcopy(T, B))
+    return ldiv!(A, Array(B))
 end
 
 function Base.:/(B::AbstractMatrix, A::AbstractStar{T}) where {T}
-    return rdiv!(wrapcopy(T, B), A)
+    return rdiv!(Array(B), A)
+end
+
+function Base.:/(B::AbstractRowVector, A::AbstractStar{T}) where {T}
+    return transpose(rdiv!(Array(transpose(B)), A))
 end
 
 function LinearAlgebra.lmul!(A::AbstractStarLU, B::AbstractVecOrMat)
@@ -140,10 +148,6 @@ function LinearAlgebra.rmul!(B::AbstractVecOrMat, A::AbstractStarLU)
     return rmul!(rmul!(B, U), L)
 end
 
-function LinearAlgebra.rmul!(B::AbstractRowVector, A::AbstractStarTriangular)
-    return transpose(rmul!(transpose(B), A))
-end
-
 function LinearAlgebra.ldiv!(A::AbstractStarLU, B::AbstractVecOrMat)
     L = AbstractStarTriangular{:L}(A)
     U = AbstractStarTriangular{:U}(A)
@@ -154,8 +158,4 @@ function LinearAlgebra.rdiv!(B::AbstractVecOrMat, A::AbstractStarLU)
     L = AbstractStarTriangular{:L}(A)
     U = AbstractStarTriangular{:U}(A)
     return rdiv!(rdiv!(B, L), U)
-end
-
-function LinearAlgebra.rdiv!(B::AbstractRowVector, A::AbstractStarTriangular)
-    return transpose(rdiv!(transpose(B), A))
 end

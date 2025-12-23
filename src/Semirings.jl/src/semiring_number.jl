@@ -343,6 +343,14 @@ function Base.:\(a::SparseMatrixCSC{<:SemiringNumber}, b::AbstractVector{<:Semir
     return mul_impl(a, b, Val(:C), Val(:N), Val(:C))
 end
 
+function Base.:\(a::Transpose{T, V}, b::Transpose{T, V}) where {T <: SemiringNumber, V <: AbstractVector{T}}
+    return mul_impl(a, b, Val(:C), Val(:N), Val(:C)) 
+end
+
+function Base.:\(a::AbstractMatrix{<:SemiringNumber}, b::SemiringNumber)
+    return mul_impl(a, b, Val(:C), Val(:N), Val(:C))
+end
+
 """
     /(b, a)
 
@@ -357,7 +365,19 @@ function Base.:/(b::SemiringNumber, a::SemiringNumber)
     return mul_impl(b, a, Val(:N), Val(:C), Val(:C))
 end
 
-function Base.:/(b::AbstractVecOrMat{<:SemiringNumber}, a::AbstractVecOrMat{<:SemiringNumber})
+function Base.:/(b::AbstractMatrix{<:SemiringNumber}, a::AbstractMatrix{<:SemiringNumber})
+    return mul_impl(b, a, Val(:N), Val(:C), Val(:C))
+end
+
+function Base.:/(b::AbstractMatrix{<:SemiringNumber}, a::SparseMatrixCSC{<:SemiringNumber})
+    return mul_impl(b, a, Val(:N), Val(:C), Val(:C))
+end
+
+function Base.:/(b::Transpose{<:SemiringNumber, <:AbstractVector}, a::Transpose{<:SemiringNumber, <:AbstractVector})
+    return mul_impl(b, a, Val(:N), Val(:C), Val(:C))
+end
+
+function Base.:/(b::SemiringNumber, a::AbstractVector{<:SemiringNumber})
     return mul_impl(b, a, Val(:N), Val(:C), Val(:C))
 end
 
