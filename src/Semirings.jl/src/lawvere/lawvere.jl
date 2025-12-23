@@ -3,117 +3,88 @@ include("min_plus_pos.jl")
 include("max_lse.jl")
 include("min_lse.jl")
 
-const LawvereSemiring{P} = Union{MaxPlusPosSemiring{P}, MinPlusPosSemiring{P}, MaxLSESemiring{P}, MinLSESemiring{P}}
+const LawvereSemiring = Union{MaxPlusPosSemiring, MinPlusPosSemiring, MaxLSESemiring, MinLSESemiring}
 
 #
-#   a^(R/P)
+#   a⁻¹
 #
-function MaxPlusPos{P}(a::MaxPlusPos{R}) where {P, R}
-    return MaxPlusPos{P}(parent(a)^(R/P))
+function MaxPlusPos(a::MinPlusPos)
+    return MaxPlusPos(inv(parent(a)))
 end
 
 #
-#   a^(-R/P)
+#   eᵃ
 #
-function MaxPlusPos{P}(a::MinPlusPos{R}) where {P, R}
-    return MaxPlusPos{P}(inv(parent(a))^(R/P))
+function MaxPlusPos(a::MaxLSE)
+    return MaxPlusPos(exp(parent(a)))
 end
 
 #
-#   exp(R/P a)
+#   e⁻ᵃ
 #
-function MaxPlusPos{P}(a::MaxLSE{R}) where {P, R}
-    return MaxPlusPos{P}(exp(parent(a) * R/P))
+function MaxPlusPos(a::MinLSE)
+    return MaxPlusPos(exp(-parent(a)))
 end
 
 #
-#   exp(-R/P a)
+#   a⁻¹
 #
-function MaxPlusPos{P}(a::MinLSE{R}) where {P, R}
-    return MaxPlusPos{P}(exp(-parent(a) * R/P))
+function MinPlusPos(a::MaxPlusPos)
+    return MinPlusPos(inv(parent(a)))
 end
 
 #
-#   a^(-R/P)
+#   e⁻ᵃ
 #
-function MinPlusPos{P}(a::MaxPlusPos{R}) where {P, R}
-    return MinPlusPos{P}(inv(parent(a))^(R/P))
+function MinPlusPos(a::MaxLSE)
+    return MinPlusPos(exp(-parent(a)))
 end
 
 #
-#   a^(R/P)
+#   eᵃ
 #
-function MinPlusPos{P}(a::MinPlusPos{R}) where {P, R}
-    return MinPlusPos{P}(parent(a)^(R/P))
+function MinPlusPos(a::MinLSE)
+    return MinPlusPos(exp(parent(a)))
 end
 
 #
-#   exp (-R/P a)
+#   log a
 #
-function MinPlusPos{P}(a::MaxLSE{R}) where {P, R}
-    return MinPlusPos{P}(exp(-parent(a) * R/P))
+function MaxLSE(a::MaxPlusPos)
+    return MaxLSE(log(parent(a)))
 end
 
 #
-#   exp (R/P a)
+#   -log a
 #
-function MinPlusPos{P}(a::MinLSE{R}) where {P, R}
-    return MinPlusPos{P}(exp(parent(a) * R/P))
+function MaxLSE(a::MinPlusPos)
+    return MaxLSE(-log(parent(a)))
 end
 
 #
-#   R/P log a
+#   -a
 #
-function MaxLSE{P}(a::MaxPlusPos{R}) where {P, R}
-    return MaxLSE{P}(log(parent(a)) * R/P)
+function MaxLSE(a::MinLSE)
+    return MaxLSE(-parent(a))
 end
 
 #
-#   -R/P log a
+#   -log a
 #
-function MaxLSE{P}(a::MinPlusPos{R}) where {P, R}
-    return MaxLSE{P}(-log(parent(a)) * R/P)
+function MinLSE(a::MaxPlusPos)
+    return MinLSE(-log(parent(a)))
 end
 
 #
-#   R/P a
+#   log a
 #
-function MaxLSE{P}(a::MaxLSE{R}) where {P, R}
-    return MaxLSE{P}(parent(a) * (R/P))
-end
-
-
-#
-#   -R/P a
-#
-function MaxLSE{P}(a::MinLSE{R}) where {P, R}
-    return MaxLSE{P}(-parent(a) * R/P)
+function MinLSE(a::MinPlusPos)
+    return MinLSE(log(parent(a)))
 end
 
 #
-#   -R/P log a
+#   -a
 #
-function MinLSE{P}(a::MaxPlusPos{R}) where {P, R}
-    return MinLSE{P}(-log(parent(a)) * R/P)
-end
-
-#
-#   R/P log a
-#
-function MinLSE{P}(a::MinPlusPos{R}) where {P, R}
-    return MinLSE{P}(log(parent(a)) * R/P)
-end
-
-#
-#   -R/P a
-#
-function MinLSE{P}(a::MaxLSE{R}) where {P, R}
-    return MinLSE{P}(-parent(a) * R/P)
-end
-
-#
-#   R/P a
-#
-function MinLSE{P}(a::MinLSE{R}) where {P, R}
-    return MinLSE{P}(parent(a) * R/P)
+function MinLSE(a::MaxLSE)
+    return MinLSE(-parent(a))
 end

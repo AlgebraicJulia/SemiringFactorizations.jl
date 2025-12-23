@@ -7,14 +7,21 @@ const RelationSemiring = Union{AndOrRelSemiring, OrAndRelSemiring}
 #   aᶜ
 #
 function OrAndRel(a::AndOrRel)
-    return OrAndRel(~parent(a))
+    return OrAndRel(btr(~parent(a)))
 end
 
 #
 #   aᶜ
 #
 function AndOrRel(a::OrAndRel)
-    return AndOrRel(~parent(a))
+    return AndOrRel(btr(~parent(a)))
+end
+
+#
+#   aᶜ
+#
+function id_impl(::Type{A}, a, dual::Val{:C}) where {A <: RelationSemiring}
+    return btr(~a)
 end
 
 function bml(a, b)

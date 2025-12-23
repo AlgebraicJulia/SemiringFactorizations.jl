@@ -38,8 +38,12 @@ end
 #
 #
 
-function zero_impl(::Type{T}, dual::Val) where {T <: Number}
+function zero_impl(::Type{T}, dual::Val{:N}) where {T <: AbstractFloat}
     return zero(T)
+end
+
+function zero_impl(::Type{T}, dual::Val{:C}) where {T <: AbstractFloat}
+    return typemax(T)
 end
 
 function zero_impl(::Type{SemiringNumber{A, T}}, dual::Val) where {A <: AbstractSemiring, T}
@@ -47,7 +51,7 @@ function zero_impl(::Type{SemiringNumber{A, T}}, dual::Val) where {A <: Abstract
     return SemiringNumber{A}(num)
 end
 
-function one_impl(::Type{T}, dual::Val) where {T <: Number}
+function one_impl(::Type{T}, dual::Val{:N}) where {T <: AbstractFloat}
     return one(T)
 end
 
@@ -56,8 +60,8 @@ function one_impl(::Type{SemiringNumber{A, T}}, dual::Val) where {A <: AbstractS
     return SemiringNumber{A}(num)
 end
 
-function star_impl(a::T) where {T <: Number}
-    return inv(one(T) - a)
+function star_impl(a::T) where {T <: AbstractFloat}
+    return inv(max(one(T) - a, zero(T)))
 end
 
 function star_impl(a::SemiringNumber{A}) where {A <: AbstractSemiring}
@@ -137,16 +141,16 @@ function mul_add_impl(a::T, b::T, c::T, ta::Val, tb::Val, dual::Val) where {A <:
     return SemiringNumber{A}(num)
 end
 
-function smul_impl(a::Number, b::Number, ta::Val, tb::Val, side::Val)
-    return smul_impl(promote(a, b)..., ta, tb, side)
+function smul_impl(a::Number, b::Number, ta::Val, side::Val)
+    return smul_impl(promote(a, b)..., ta, side)
 end
 
-function smul_impl(a::T, b::T, ta::Val, tb::Val, side::Val) where {T <: Number}
-    return b / (one(T) - a)
+function smul_impl(a::T, b::T, ta::Val, side::Val) where {T <: AbstractFloat}
+    return b / max(one(T) - a, zero(T))
 end
 
-function smul_impl(a::T, b::T, ta::Val, tb::Val, side::Val) where {A <: AbstractSemiring, T <: SemiringNumber{A}}
-    num = smul_impl(A, parent(a), parent(b), ta, tb, side)
+function smul_impl(a::T, b::T, ta::Val, side::Val) where {A <: AbstractSemiring, T <: SemiringNumber{A}}
+    num = smul_impl(A, parent(a), parent(b), ta, side)
     return SemiringNumber{A}(num)
 end
 
@@ -227,6 +231,22 @@ function Base.:*(a::SemiringNumber, b::StaticInt)
     return mul_impl(a, b, Val(:N), Val(:N), Val(:N))
 end
 
+function Base.:*(a::Adjoint{<:SemiringNumber}, b::AbstractVecOrMat{<:SemiringNumber})
+    return (b \ a')'
+end
+
+function Base.:*(a::Adjoint{T, <:AbstractVector{T}}, b::AbstractVecOrMat{<:SemiringNumber}) where {T <: SemiringNumber}
+    return (b \ a')'
+end
+
+function Base.:*(a::AbstractMatrix{<:SemiringNumber}, b::Adjoint{<:SemiringNumber})
+    return (b' / a)'
+end
+
+function Base.:*(a::Adjoint{<:SemiringNumber}, b::Adjoint{<:SemiringNumber})
+    return (b' ⅋ a')'
+end
+
 function Base.FastMath.mul_fast(a::StaticInt, b::SemiringNumber)
     return a * b
 end
@@ -281,6 +301,18 @@ function ⅋(a, b)
     return mul_impl(a, b, Val(:N), Val(:N), Val(:C))
 end
 
+function ⅋(a::Adjoint{<:SemiringNumber}, b::AbstractVecOrMat{<:SemiringNumber})
+    return a' \ b
+end
+
+function ⅋(a::AbstractMatrix{<:SemiringNumber}, b::Adjoint{<:SemiringNumber})
+    return a / b'
+end
+
+function ⅋(a::Adjoint{<:SemiringNumber}, b::Adjoint{<:SemiringNumber})
+    return (b' * a')'
+end
+
 """
     \\(a, b)
 
@@ -311,6 +343,14 @@ function Base.:\(a::SparseMatrixCSC{<:SemiringNumber}, b::AbstractVector{<:Semir
     return mul_impl(a, b, Val(:C), Val(:N), Val(:C))
 end
 
+function Base.:\(a::Transpose{T, V}, b::Transpose{T, V}) where {T <: SemiringNumber, V <: AbstractVector{T}}
+    return mul_impl(a, b, Val(:C), Val(:N), Val(:C)) 
+end
+
+function Base.:\(a::AbstractMatrix{<:SemiringNumber}, b::SemiringNumber)
+    return mul_impl(a, b, Val(:C), Val(:N), Val(:C))
+end
+
 """
     /(b, a)
 
@@ -325,16 +365,20 @@ function Base.:/(b::SemiringNumber, a::SemiringNumber)
     return mul_impl(b, a, Val(:N), Val(:C), Val(:C))
 end
 
-function Base.:/(b::AbstractVecOrMat{<:SemiringNumber}, a::AbstractVecOrMat{<:SemiringNumber})
+function Base.:/(b::AbstractMatrix{<:SemiringNumber}, a::AbstractMatrix{<:SemiringNumber})
     return mul_impl(b, a, Val(:N), Val(:C), Val(:C))
 end
 
-function ⋉(a, b)
-    return mul_impl(a, b, Val(:C), Val(:N), Val(:N))
+function Base.:/(b::AbstractMatrix{<:SemiringNumber}, a::SparseMatrixCSC{<:SemiringNumber})
+    return mul_impl(b, a, Val(:N), Val(:C), Val(:C))
 end
 
-function ⋊(b, a)
-    return mul_impl(b, a, Val(:N), Val(:C), Val(:N))
+function Base.:/(b::Transpose{<:SemiringNumber, <:AbstractVector}, a::Transpose{<:SemiringNumber, <:AbstractVector})
+    return mul_impl(b, a, Val(:N), Val(:C), Val(:C))
+end
+
+function Base.:/(b::SemiringNumber, a::AbstractVector{<:SemiringNumber})
+    return mul_impl(b, a, Val(:N), Val(:C), Val(:C))
 end
 
 function Base.:<=(a::SemiringNumber{A, T}, b::SemiringNumber{A, T}) where {A <: AbstractSemiring, T}

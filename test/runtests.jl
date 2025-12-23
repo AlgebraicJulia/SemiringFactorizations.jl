@@ -4,7 +4,7 @@ using SemiringFactorizations.Semirings
 using SparseArrays
 using Test
 
-import SemiringFactorizations: fma
+import SemiringFactorizations: jacobi, newton, horner
 
-include("semirings.jl")
 include("semiring_factorizations.jl")
+include("semirings.jl")

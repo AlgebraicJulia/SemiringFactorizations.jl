@@ -36,15 +36,7 @@ function wrapcopy(::Type{T}, A::Transpose) where {T}
     return transpose(wrapcopy(T, parent(A)))
 end
 
-function unrow(A::AbstractMatrix)
-    return A
-end
-
-function unrow(A::AbstractRowVector)
-    return parent(A)
-end
-
-export SemiringNumber, AndOr, OrAnd, MaxPlus, MinPlus, MaxMul, MinMul, ⋉, ⋊, ⅋
+export SemiringNumber, AndOr, OrAnd, MaxPlus, MinPlus, MaxMul, MinMul, ⅋
 export StrictLowerTriangular
 export StarLU, StarTriangular, star, slu
 export SymbolicStarLU

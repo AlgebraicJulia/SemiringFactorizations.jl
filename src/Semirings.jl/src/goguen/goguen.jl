@@ -1,7 +1,7 @@
 include("max_gog.jl")
 include("min_gog.jl")
 
-const Goguen = Union{MaxGogSemiring, MinGogSemiring}
+const GoguenSemiring = Union{MaxGogSemiring, MinGogSemiring}
 
 function MaxGog(a::MinGog{T}) where {T}
     return MaxGog(one(T) - parent(a))
